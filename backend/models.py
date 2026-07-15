@@ -126,6 +126,7 @@ class Quote(BaseDocument):
     status: str = 'draft'
     validUntil: str = ''
     convertedOrderId: str = ''
+    shippingAddress: dict = {}
     notes: str = ''
     createdAt: Optional[str] = None
     updatedAt: Optional[str] = None
@@ -156,7 +157,8 @@ class Payment(BaseDocument):
 class Return(BaseDocument):
     orderId: str
     items: List[dict] = []
-    reason: str
+    reasonCode: str
+    reasonNotes: str = ''
     status: str = 'requested'
     refundAmount: float = 0
     returnShippingPaidBy: str = ''

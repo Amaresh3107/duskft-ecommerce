@@ -15,6 +15,21 @@ TRANSITIONS = {
     'received': ['refunded', 'rejected'],
 }
 
+# Fixed reason-code dropdown — who pays return shipping is derived from the code, never from free text.
+RETURN_REASON_CODES = {
+    'defective': {'label': 'Product is defective', 'paidBy': 'store'},
+    'wrong_item_shipped': {'label': 'Wrong item was shipped', 'paidBy': 'store'},
+    'wrong_size_ordered': {'label': 'Wrong size/color ordered by mistake', 'paidBy': 'customer'},
+    'changed_mind': {'label': 'Changed mind / no longer needed', 'paidBy': 'customer'},
+    'quality_not_as_expected': {'label': 'Quality not as expected', 'paidBy': 'customer'},
+    'other': {'label': 'Other', 'paidBy': 'customer'},
+}
+
+
+@router.get('/reason-codes')
+async def list_reason_codes(session: dict = Depends(get_session)):
+    return [{'code': code, 'label': v['label']} for code, v in RETURN_REASON_CODES.items()]
+
 
 @router.post('')
 async def create_return(payload: dict, session: dict = Depends(get_session)):
@@ -33,13 +48,15 @@ async def create_return(payload: dict, session: dict = Depends(get_session)):
         if days_since > RETURN_WINDOW_DAYS:
             raise HTTPException(status_code=400, detail=f'Return window ({RETURN_WINDOW_DAYS} days from delivery) has expired.')
 
-    reason = payload.get('reason', '')
-    is_defect = 'defect' in reason.lower() or 'wrong' in reason.lower() or 'error' in reason.lower()
+    reason_code = payload.get('reasonCode')
+    if reason_code not in RETURN_REASON_CODES:
+        raise HTTPException(status_code=400, detail=f'Invalid reasonCode. Must be one of: {", ".join(RETURN_REASON_CODES)}')
 
     ret = Return(
-        orderId=payload['orderId'], items=payload.get('items', []), reason=reason,
+        orderId=payload['orderId'], items=payload.get('items', []),
+        reasonCode=reason_code, reasonNotes=payload.get('reasonNotes', ''),
         status='requested', refundAmount=0,
-        returnShippingPaidBy='store' if is_defect else 'customer',
+        returnShippingPaidBy=RETURN_REASON_CODES[reason_code]['paidBy'],
         createdAt=now_iso(),
     )
     result = await db.returns.insert_one(ret.to_mongo())

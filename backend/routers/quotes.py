@@ -3,7 +3,7 @@ from bson import ObjectId
 from database import db
 from models import Quote, Order
 from deps import require_roles, get_session
-from business import calculate_price, gen_number, now_iso, log_activity
+from business import calculate_price, calculate_shipping, calculate_tax, gen_number, now_iso, log_activity
 
 router = APIRouter(prefix='/api/quotes', tags=['quotes'])
 
@@ -42,6 +42,7 @@ async def create_quote(payload: dict, session: dict = Depends(get_session)):
         status='draft',
         validUntil=payload.get('validUntil', ''),
         convertedOrderId='',
+        shippingAddress=payload.get('shippingAddress', {}),
         notes=payload.get('notes', ''),
         createdAt=now_iso(),
     )
@@ -87,21 +88,38 @@ async def convert_to_order(quote_id: str, session: dict = Depends(require_roles(
         raise HTTPException(status_code=400, detail='Only approved quotes can be converted to an order.')
 
     customer = await db.customers.find_one({'_id': ObjectId(quote['customerId'])}) if quote.get('customerId') else None
+
+    shipping_address = quote.get('shippingAddress') or {}
+    if not shipping_address and quote.get('customerId'):
+        addr = await db.addresses.find_one({'customerId': quote['customerId'], 'isDefault': True})
+        if not addr:
+            addr = await db.addresses.find_one({'customerId': quote['customerId']})
+        if addr:
+            shipping_address = {
+                'line1': addr.get('line1', ''), 'line2': addr.get('line2', ''),
+                'city': addr.get('city', ''), 'state': addr.get('state', ''), 'pincode': addr.get('pincode', ''),
+            }
+
+    subtotal = quote['subtotal']
+    shipping_cost = await calculate_shipping(shipping_address.get('pincode'), subtotal)
+    tax_breakdown = await calculate_tax(subtotal, shipping_address.get('state'))
+    total = subtotal + shipping_cost + tax_breakdown['total']
+
     order = Order(
         orderNumber=gen_number('ORD'),
         customerId=quote['customerId'],
         customerName=customer['name'] if customer else 'Customer',
         items=quote['items'],
-        subtotal=quote['subtotal'],
-        shippingCost=0,
-        tax=0,
-        taxBreakdown={},
+        subtotal=subtotal,
+        shippingCost=shipping_cost,
+        tax=tax_breakdown['total'],
+        taxBreakdown=tax_breakdown,
         discount=0,
-        total=quote['subtotal'],
+        total=total,
         paymentMethod='bank_transfer',
         paymentStatus='pending',
         orderStatus='confirmed',
-        shippingAddress={},
+        shippingAddress=shipping_address,
         notes=f'Converted from quote {quote["quoteNumber"]}',
         createdAt=now_iso(),
     )
