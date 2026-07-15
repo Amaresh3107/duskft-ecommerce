@@ -5,7 +5,7 @@ import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
 import { Switch } from '../components/ui/switch';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../components/ui/dialog';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../components/ui/table';
 import { Badge } from '../components/ui/badge';
 import { toast } from '../components/ui/sonner';
@@ -73,11 +73,13 @@ export default function KnowledgeBaseAdmin() {
 
   const loadEntries = useCallback(async () => {
     const res = await fetch(`${API}/chatbot/kb?includeInactive=true`, { headers: getAuthHeaders() });
+    if (res.status === 401) return logout();
     if (res.ok) setEntries(await res.json());
   }, []);
 
   const loadLogs = useCallback(async () => {
     const res = await fetch(`${API}/chatbot/logs`, { headers: getAuthHeaders() });
+    if (res.status === 401) return logout();
     if (res.ok) setLogs(await res.json());
   }, []);
 
@@ -253,6 +255,7 @@ export default function KnowledgeBaseAdmin() {
         <DialogContent data-testid={KB_ADMIN.dialog} className="rounded-none sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{editingId ? 'Edit Entry' : 'Add Knowledge Base Entry'}</DialogTitle>
+            <DialogDescription>This answer will be used by the AI chatbot to respond to matching customer questions.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <Input data-testid={KB_ADMIN.questionInput} placeholder="Question" value={form.question}

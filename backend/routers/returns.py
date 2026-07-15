@@ -44,6 +44,8 @@ async def create_return(payload: dict, session: dict = Depends(get_session)):
     delivered_at = order.get('deliveredAt')
     if delivered_at:
         delivered_dt = datetime.fromisoformat(delivered_at)
+        if delivered_dt.tzinfo is None:
+            delivered_dt = delivered_dt.replace(tzinfo=timezone.utc)
         days_since = (datetime.now(timezone.utc) - delivered_dt).days
         if days_since > RETURN_WINDOW_DAYS:
             raise HTTPException(status_code=400, detail=f'Return window ({RETURN_WINDOW_DAYS} days from delivery) has expired.')

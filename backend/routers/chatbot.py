@@ -33,7 +33,11 @@ async def list_kb(includeInactive: bool = False, session: dict = Depends(get_opt
 
 @router.post('/kb')
 async def create_kb(payload: dict, session: dict = Depends(require_roles('admin', 'staff'))):
-    kb = ChatbotKB(question=payload['question'], answer=payload['answer'],
+    question = (payload.get('question') or '').strip()
+    answer = (payload.get('answer') or '').strip()
+    if not question or not answer:
+        raise HTTPException(status_code=400, detail='Both question and answer are required.')
+    kb = ChatbotKB(question=question, answer=answer,
                    category=payload.get('category', ''), active=payload.get('active', True))
     result = await db.chatbot_kb.insert_one(kb.to_mongo())
     doc = await db.chatbot_kb.find_one({'_id': result.inserted_id})

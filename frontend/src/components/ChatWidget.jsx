@@ -64,7 +64,12 @@ export const ChatWidget = () => {
         for (const evt of events) {
           const line = evt.replace(/^data:\s*/, '').trim();
           if (!line) continue;
-          const parsed = JSON.parse(line);
+          let parsed;
+          try {
+            parsed = JSON.parse(line);
+          } catch {
+            continue;
+          }
           if (parsed.delta) {
             setMessages((m) => {
               const next = [...m];
