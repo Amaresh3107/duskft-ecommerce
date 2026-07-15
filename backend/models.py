@@ -101,6 +101,8 @@ class Order(BaseDocument):
     orderNumber: str
     customerId: str = ''
     customerName: str
+    guestEmail: str = ''
+    guestPhone: str = ''
     items: List[dict]
     subtotal: float
     shippingCost: float = 0

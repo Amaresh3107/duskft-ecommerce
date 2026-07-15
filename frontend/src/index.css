@@ -24,6 +24,27 @@ code {
         source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
 }
 
+@media print {
+    .no-print {
+        display: none !important;
+    }
+    body * {
+        visibility: hidden;
+    }
+    .invoice-print-area, .invoice-print-area * {
+        visibility: visible;
+    }
+    .invoice-print-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        margin: 0;
+        padding: 20px;
+        box-shadow: none;
+    }
+}
+
 @layer base {
     :root {
         --background: 0 0% 100%;

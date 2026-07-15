@@ -15,3 +15,4 @@ export * from './auth';
 export * from './home';
 export * from './chatWidget';
 export * from './kbAdmin';
+export * from './storefront';
