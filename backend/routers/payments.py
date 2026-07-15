@@ -54,6 +54,10 @@ async def create_payment(payload: dict, session: dict = Depends(require_roles('a
 
 @router.get('/by-invoice/{invoice_id}')
 async def list_by_invoice(invoice_id: str, session: dict = Depends(get_session)):
+    if session['role'] == 'customer':
+        invoice = await db.invoices.find_one({'_id': ObjectId(invoice_id)})
+        if not invoice or invoice.get('customerId') != session['user_id']:
+            raise HTTPException(status_code=403, detail='Not authorized to view payments for this invoice.')
     docs = await db.payments.find({'invoiceId': invoice_id}).sort('createdAt', -1).to_list(1000)
     return [Payment.from_mongo(d) for d in docs]
 

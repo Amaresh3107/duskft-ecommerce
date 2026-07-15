@@ -52,6 +52,13 @@ async def seed_defaults():
         if not existing:
             await db.settings.update_one({'_id': key}, {'$set': {'value': value}}, upsert=True)
 
+    if not await db.customers.find_one({'email': 'buyer1@example.com'}):
+        await db.customers.insert_one({
+            'name': 'Boutique Buyer', 'email': 'buyer1@example.com', 'phone': '9998887770',
+            'passwordHash': hash_password('buyer123'), 'businessName': 'Buyer Boutique',
+            'gstNumber': '', 'status': 'active', 'createdAt': now_iso(),
+        })
+
     if await db.categories.count_documents({}) == 0:
         cats = [
             {'name': 'Kurtas & Sets', 'slug': 'kurtas-sets', 'imageUrl': '', 'sortOrder': 1, 'active': True},
