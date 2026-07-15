@@ -1,0 +1,160 @@
+{
+  "theme": "light",
+  "archetype": "LUXURY_SWISS_HYBRID",
+  "typography": {
+    "headings": {
+      "storefront": {
+        "family": "font-serif (Cormorant Garamond, Playfair Display)",
+        "weight": "font-light to font-medium",
+        "tracking": "tracking-tight",
+        "usage": "Storefront marketing pages, massive hero statements, category headers"
+      },
+      "dashboard": {
+        "family": "font-sans (Manrope, Cabinet Grotesk)",
+        "weight": "font-semibold to font-black",
+        "tracking": "tracking-tighter",
+        "usage": "Customer Portal and Admin Panel KPIs, page titles, widget headers"
+      }
+    },
+    "body": {
+      "family": "font-mono or structured sans (IBM Plex Sans, Inter used SPARINGLY only for tabular data)",
+      "size": "text-sm md:text-base",
+      "leading": "leading-relaxed",
+      "usage": "Data tables, matrices, invoice lines, general descriptions"
+    },
+    "labels": {
+      "style": "uppercase text-xs tracking-[0.2em] font-medium text-slate-500",
+      "usage": "Table headers, overlines, status badges, tiny UI elements"
+    },
+    "hierarchy": {
+      "h1_max": "text-5xl md:text-6xl+",
+      "h2": "text-3xl md:text-4xl",
+      "h3": "text-xl md:text-2xl",
+      "h4": "text-lg md:text-xl",
+      "body": "text-base",
+      "small": "text-sm"
+    }
+  },
+  "colors": {
+    "base": {
+      "background_light": "#F9F8F6 (Bone White / Pale Sand)",
+      "background_dark": "#0B101A (Deep Midnight Void - for reverse contrast sections)",
+      "surface": "#FFFFFF",
+      "surface_muted": "#F3F1EC"
+    },
+    "text": {
+      "primary": "#121826 (Ink Black with blue tint)",
+      "secondary": "#5E6A7D (Slate Gray)",
+      "inverse": "#F9F8F6"
+    },
+    "accents": {
+      "primary": "#0B132B (Midnight Navy - primary action, sophisticated)",
+      "kinetic": "#FF4500 (Electric Safety Orange - urgent actions: Pay, Submit Quote, Add to Cart)",
+      "success": "#10B981 (Matte Emerald - Order approved, Paid)",
+      "warning": "#F59E0B (Ochre - Pending, Draft)",
+      "error": "#EF4444 (Signal Red - RMA, Return, Unpaid)"
+    },
+    "forbidden_colors": ["#7351B7", "#1B93A4", "pure #000000", "pure #808080"]
+  },
+  "visual_enhancers": {
+    "storefront": {
+      "glassmorphism": "Crystal Glass style: bg-white/70 backdrop-blur-xl border-b border-white/40 shadow-[0_8px_32px_rgba(0,0,0,0.05)]",
+      "texture": "Subtle noise overlay on dark hero sections (mix-blend-overlay opacity-20)",
+      "overlay": "Hero images must use bg-black/30 to bg-black/40 MAX. Gradient overlays preferred: bg-gradient-to-t from-black/60 via-black/20 to-transparent."
+    },
+    "dashboards": {
+      "surfaces": "Flat Solid surfaces. NO glassmorphism in the data-heavy Admin/Portal to prevent visual refraction.",
+      "borders": "Grid Borders (Technical Look). 1px border-slate-200. Sharp edges (rounded-none or max rounded-sm).",
+      "neumorphism": "Avoided. Use sharp 1px strokes with subtle shadow-sm for interactive cards."
+    }
+  },
+  "grids_layouts": {
+    "storefront_hero": "Tetris Grid: grid-cols-1 md:grid-cols-12 gap-8. Asymmetrical. col-span-8 for main image, col-span-4 for intro text.",
+    "dashboard_kpi": "High Density Grid: grid-cols-1 md:grid-cols-4 gap-4. Items use h-full.",
+    "catalog_matrix": "Dense table layout for size/color matrix. sticky headers and first columns for easy mobile scrolling.",
+    "spacing_scale": "Generous spacing philosophy for Storefront (p-8 to p-24). Dense packing for Admin (p-4 to p-6).",
+    "mobile_first": "Always start with grid-cols-1. Images max-h-[80vh] on mobile."
+  },
+  "component_guidelines": {
+    "storefront": {
+      "structure": "Pure HTML/Tailwind. Custom overlapping divs.",
+      "interactives": "Shadcn components heavily restyled (stripped of default Vercel look).",
+      "marquee": "Editorial Ribbon style. react-fast-marquee with brand partners, font-serif, slow drift."
+    },
+    "admin_and_portal": {
+      "structure": "Shadcn heavily utilized. Data Table, Dialogs, Select, Tabs.",
+      "cards": "Flat, rectangular, dense styles. 1px border, no heavy drop shadows.",
+      "forms": "Shadcn Forms. Use floating labels or distinct uppercase overlines.",
+      "charts": "Shadcn/Recharts for KPIs (Sales velocity, Quote conversion rates)."
+    },
+    "invoice_print": {
+      "layout": "@media print specifics. Hide nav, hide sidebars. Pure white background, black text. Strict table grid, IBM Plex Sans font. Page breaks avoided inside table rows."
+    }
+  },
+  "motion": {
+    "philosophy": "Momentum over speed. Lenis smooth scrolling for Storefront.",
+    "interactions": "Hover states must lighten active state. focus:ring-2 focus:ring-offset-2. No transition: all.",
+    "transitions": "Specific: transition-transform 0.3s ease-out, transition-opacity 0.2s ease",
+    "accessibility": "Respect prefers-reduced-motion. Use aria-hidden='true' for decorative motion."
+  },
+  "accessibility": {
+    "contrast": "APCA preferred. Normal text > 4.5:1. Large > 3:1.",
+    "testing": "All interactive elements MUST include data-testid (e.g., data-testid='quote-submit-button', data-testid='color-matrix-input').",
+    "focus": "Explicit focus states with high contrast rings."
+  },
+  "media": {
+    "rules": "Images must have contextual relevance. Main subject must be preserved. Never use placeholder URLs.",
+    "image_urls": {
+      "hero_warehouse": {
+        "url": "https://images.unsplash.com/photo-1553413077-190dd305871c",
+        "description": "Large warehouse scale, use for B2B logistics / About Us section"
+      },
+      "fulfillment_boxes": {
+        "url": "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d",
+        "description": "Yellow plastic boxes, ideal for Order/Fulfillment feature highlights"
+      },
+      "model_black_suit": {
+        "url": "https://images.unsplash.com/photo-1776273920157-4d604bff2cba",
+        "description": "High-end B2B fashion catalog hero, sleek aesthetic"
+      },
+      "model_varsity": {
+        "url": "https://images.unsplash.com/photo-1778395497150-2c5920894162",
+        "description": "Youthful fashion catalog item, street-wear B2B segment"
+      },
+      "logistics_delivery": {
+        "url": "https://images.unsplash.com/photo-1566576721346-d4a3b4eaeb55?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzJ8MHwxfHNlYXJjaHwxfHxiMmIlMjBsb2dpc3RpY3MlMjBkZWxpdmVyeXxlbnwwfHx8fDE3ODI3MjE0NzF8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Handing over package, use for Customer Portal order success or Admin returns workflow"
+      }
+    }
+  },
+  "3d_libraries_and_steps": {
+    "library": "React Spring Parallax or Framer Motion",
+    "usage": "Storefront only. Use simple 2.5D parallax for scrolling down the fashion lookbook and features. Do not overcomplicate with WebGL for B2B. Buyers prioritize speed.",
+    "steps": [
+      "Install framer-motion and @studio-freight/react-lenis",
+      "Wrap Storefront layout in Lenis provider for smooth scroll momentum.",
+      "Use framer-motion useScroll and useTransform to map y-axis scroll to image y-offsets."
+    ]
+  },
+  "instructions_to_main_agent": {
+    "phase_1_setup": "Initialize Tailwind, configure custom fonts (Cormorant Garamond, Manrope, IBM Plex Sans). Set up React Router for three distinct layouts: / (Storefront), /portal (Customer), /admin (Admin).",
+    "phase_2_storefront": "Build high-impact landing page. Use Lenis for scroll. Implement AI Gemini Chat widget as a floating FAB using Lucide icons. Build catalog with product cards.",
+    "phase_3_catalog_matrix": "Crucial B2B feature: On Product Detail Page, do not use standard dropdowns. Build a 2D matrix (Rows = Colors, Columns = Sizes) with number inputs for bulk adding to cart. Display Tier Pricing table clearly.",
+    "phase_4_admin_portal": "Switch to technical layout. Sidebar nav, dense grids. Implement Quotes Kanban pipeline, Order data tables. Build the print-ready Invoice component triggered via window.print() and styled specifically with @media print.",
+    "phase_5_polish": "Apply data-testid to everything. Ensure contrast is perfect. Implement Sonner toasts for all actions."
+  },
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "You tend to converge toward generic outputs. Avoid 'AI slop'. Make it creative.",
+    "Dark colors look good independently. DO NOT use dark colors as gradients.",
+    "Don't make generic centered layouts. Left-align text. Use asymmetrical grids.",
+    "Create depth with layered elements and z-index hierarchy.",
+    "Use glass-morphism effects (12-24px blur) only where appropriate (Storefront header).",
+    "MUST NOT apply universal transition: all. Target specific properties.",
+    "MUST NOT center align the app container (.App { text-align: center; } is banned).",
+    "Always use modern button styles (pill-shaped or sharp) with interaction animations.",
+    "NEVER use emoji characters (🤖🧠💭💡🔮🎯) for icons. Use Phosphor, Lucide, or Radix icons.",
+    "Every interaction needs micro-animations (hover states, focus rings).",
+    "Use 2-3x more spacing than feels comfortable on marketing pages.",
+    "Use sonner for toasts at /app/src/components/ui/sonner.tsx"
+  ]
+}
