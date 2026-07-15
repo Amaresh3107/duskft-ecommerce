@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import os
 from database import db
 from auth_utils import hash_password
 from business import now_iso
@@ -43,8 +44,10 @@ async def seed_defaults():
         'sellerEmail': 'orders@antigravitywholesale.com',
         'whatsappNumber': '919876543210',
         'freeShippingThreshold': '15000',
-        'geminiApiKey': '',
-        'geminiModel': 'gemini-3.5-flash',
+        'shippingPolicyText': 'Orders ship within 2-3 business days. Shipping cost depends on your delivery pincode and is calculated at checkout; orders above the free-shipping threshold ship free.',
+        'returnPolicyText': 'Returns are accepted within 7 days of delivery for the full order. Customer pays return shipping unless the reason is a store error, defect, or quality issue, in which case the store covers it.',
+        'geminiApiKey': os.environ.get('GEMINI_API_KEY', ''),
+        'geminiModel': os.environ.get('GEMINI_MODEL', 'gemini-3.5-flash'),
         'aiSystemPrompt': 'You are a helpful assistant for a wholesale clothing store. Answer questions about products, MOQ, tier pricing, shipping and orders using only the provided context. If unsure, say you are not sure and offer to connect the customer over WhatsApp.',
     }
     for key, value in default_settings.items():

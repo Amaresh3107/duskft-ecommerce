@@ -642,32 +642,32 @@ class TestReturns:
                       json={'items': [{'productId': krt['id'], 'quantity': 25}],
                             'shippingAddress': {'pincode': '400001', 'state': 'Maharashtra'}}).json()
         r = http.post(f'{API}/returns', headers=hdr(customer_a['token']),
-                      json={'orderId': o['id'], 'reason': 'change of mind'})
+                      json={'orderId': o['id'], 'reasonCode': 'changed_mind'})
         assert r.status_code == 400
 
     def test_return_ownership_check(self, http, admin_headers, customer_a, customer_b, seeded_products):
         oid = self._fresh_delivered_order(http, admin_headers, customer_a, seeded_products)
         blocked = http.post(f'{API}/returns', headers=hdr(customer_b['token']),
-                            json={'orderId': oid, 'reason': 'not mine'})
+                            json={'orderId': oid, 'reasonCode': 'defective'})
         assert blocked.status_code == 403
 
     def test_return_reason_defect_store_pays(self, http, admin_headers, customer_a, seeded_products):
         oid = self._fresh_delivered_order(http, admin_headers, customer_a, seeded_products)
         r = http.post(f'{API}/returns', headers=hdr(customer_a['token']),
-                      json={'orderId': oid, 'reason': 'received a defective piece'})
+                      json={'orderId': oid, 'reasonCode': 'defective'})
         assert r.status_code == 200
         assert r.json()['returnShippingPaidBy'] == 'store'
 
     def test_return_reason_normal_customer_pays(self, http, admin_headers, customer_a, seeded_products):
         oid = self._fresh_delivered_order(http, admin_headers, customer_a, seeded_products)
         r = http.post(f'{API}/returns', headers=hdr(customer_a['token']),
-                      json={'orderId': oid, 'reason': 'size issue'})
+                      json={'orderId': oid, 'reasonCode': 'wrong_size_ordered'})
         assert r.json()['returnShippingPaidBy'] == 'customer'
 
     def test_return_status_transitions(self, http, admin_headers, customer_a, seeded_products):
         oid = self._fresh_delivered_order(http, admin_headers, customer_a, seeded_products)
         ret = http.post(f'{API}/returns', headers=hdr(customer_a['token']),
-                        json={'orderId': oid, 'reason': 'defect'}).json()
+                        json={'orderId': oid, 'reasonCode': 'defective'}).json()
         rid = ret['id']
         # Invalid: requested -> refunded
         bad = http.put(f'{API}/returns/{rid}/status', headers=admin_headers, json={'status': 'refunded'})

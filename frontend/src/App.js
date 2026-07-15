@@ -3,6 +3,9 @@ import "@/App.css";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import axios from "axios";
 import { HOME } from "@/constants/testIds";
+import { Toaster } from "@/components/ui/sonner";
+import ChatDemo from "@/pages/ChatDemo";
+import KnowledgeBaseAdmin from "@/pages/KnowledgeBaseAdmin";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -47,8 +50,11 @@ function App() {
           <Route path="/" element={<Home />}>
             <Route index element={<Home />} />
           </Route>
+          <Route path="/chat-demo" element={<ChatDemo />} />
+          <Route path="/admin/knowledge-base" element={<KnowledgeBaseAdmin />} />
         </Routes>
       </BrowserRouter>
+      <Toaster />
     </div>
   );
 }

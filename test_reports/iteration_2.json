@@ -1,0 +1,48 @@
+{
+  "summary": "Phase 2 backend + frontend testing pass. Added /app/backend/tests/phase2_chatbot_test.py with 29 new tests covering chatbot KB CRUD role gating (admin/staff can create/update, admin-only delete, customer 403/401), chatbot logs role gating (403 for customer, 401 for anon, 200 for admin/staff, lowConfidence filter), SSE /chatbot/ask (public, streams delta+done events, matchedKbIds populated for fuzzy-matched KB — 'kurtas' -> 'kurta', low-confidence path for off-topic query creates chatbot_logs entry with lowConfidence=true), returns regression (reasonCode enum enforced, all 6 codes map to correct paidBy — quality_not_as_expected -> store, wrong_size_ordered/changed_mind/other -> customer, invalid/missing code -> 400), and quote-convert regression (shipping+CGST/SGST recalculated from saved default address for Maharashtra, IGST-only for Delhi customer). Also updated existing TestReturns tests in backend_test.py to use new reasonCode enum. Frontend tested via Playwright: /chat-demo FAB opens panel, streams reply, low-confidence WhatsApp CTA shows correct wa.me link; /admin/knowledge-base login gate, add-entry dialog, KB table, logs tab with 16 real logs and confidence badges, logout, and customer-credential login-rejection all verified. Combined result: 95 passed / 1 skipped out of 96. The 1 skip is the confident-answer-with-streamed-text assertion — Gemini 3.5-flash preview returned 503 on all 3 backend retries + 3 test-level retries, so we could only confirm matchedKbIds populated + graceful fallback message. This is the documented known external issue and NOT a code bug.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/chatbot/ask", "issue": "During this test window, gemini-3.5-flash preview returned 503 High Demand on nearly every call (matched KB questions still fell back to canned 'Sorry, I couldn't reach the AI service just now' message). The backend handles it gracefully — matchedKbIds is still populated, lowConfidence is flipped to true, WhatsApp CTA is triggered, and the log is still written. NOT a bug per problem-statement note but flagging so main agent knows KB-matched questions may currently look identical to unmatched ones from the UX perspective."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "KB Admin add-entry dialog", "issues": ["Radix Dialog console warning: 'Missing Description or aria-describedby={undefined} for DialogContent' — accessibility warning only, does not affect functionality. Add a DialogDescription (or aria-describedby) inside DialogContent to silence it."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/phase2_chatbot_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: Add DialogDescription (or aria-describedby) to KB admin dialog to silence Radix a11y warning.",
+    "CONSIDER: When Gemini returns a hard error on all 3 backend retries but KB context DID match, current code sets lowConfidence=true and shows WhatsApp CTA. This is arguably correct fallback behavior, but you may also want to log a distinct source='llm_error' vs 'none' so admins can distinguish 'no KB match' from 'KB matched but LLM was down' in the Conversation Logs. Right now source='kb' if matchedKbIds is truthy — actually looking at chatbot.py line 180, this branch is already handled correctly — but the log answer will be the canned fallback string, which might confuse admins reviewing gap-analysis. Minor UX polish, not a bug.",
+    "NICE-TO-HAVE: The fuzzy-match includes matchedKbIds even on the LLM-error fallback path. Consider only marking a Q as 'low-confidence gap' when no KB matched — LLM downtime should be a separate 'transient error' badge in the logs tab."
+  ],
+  "critical_code_review_comments": [
+    "chatbot.py `ask()` — variable `low_conf` is only assigned inside the try (after successful stream) or the >=3 attempts branch of the except. If Gemini fails <3 times and then succeeds, low_conf is set on the success path. If it fails all 3 times, low_conf=True is set explicitly. Logic works but the assignment is scattered — extracting a helper would improve readability.",
+    "chatbot.py `build_context()` — `matched_products` is truncated to 5 AFTER matching; consider truncating BEFORE the loop or storing a score for products so the top 5 by relevance are picked, not the first 5 by DB order.",
+    "chatbot.py `list_logs()` — returns up to 500 log docs with no pagination. Fine for MVP but will not scale.",
+    "quotes.py convert_to_order — falls back to `find_one` (arbitrary address) if no isDefault is found. If a customer has multiple addresses with no default flag set, the chosen shipping address is non-deterministic. Consider requiring a default or ordering by createdAt.",
+    "returns.py — `delivered_dt = datetime.fromisoformat(delivered_at)` will crash if deliveredAt is missing tz info. `now_iso()` includes tz so all app-created data is safe, but any admin backfill or Mongo import without tz would 500 on return creation. Add a defensive parse.",
+    "KB admin frontend — token stored in localStorage under 'kb_admin_token'. If Phase 3 storefront/portal uses a different auth-token key, the two systems' localStorage will diverge and confuse a user who's logged in on both tabs. Consider unifying under a single 'auth_token' + 'auth_role' pair now to avoid a migration later.",
+    "ChatWidget.jsx — SSE JSON.parse inside the loop has no try/catch. If a partial buffer splits mid-JSON on a non-\\n\\n boundary, the parser will throw and the whole stream aborts with the generic error toast. Current buffering logic (split on \\n\\n and keep the tail) is correct for well-formed SSE but adding a defensive try/continue around JSON.parse would harden it against a malformed event.",
+    "chatbot.py POST /kb — has no Pydantic validation; passes raw payload keys through. If admin submits {question: '', answer: ''} it will still create an empty KB entry. Add a Pydantic body model with min_length validators.",
+    "KnowledgeBaseAdmin.jsx — no 401 handling on loadEntries/loadLogs. If token expires, the user just sees an empty table with no indication to re-login. Consider redirect-to-login on 401."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/phase2_chatbot_test.py"
+  ],
+  "success_rate": {"backend": "100% (95/95 asserted; 1 skipped due to external Gemini 503, not a defect)", "frontend": "100% of Phase 2 flows (chat-demo + KB admin + auth rejection)"},
+  "test_credentials": "admin@example.com / ChangeMe123! (staff). test_buyera@example.com / buyerA123 (customer, auto-registered by fixtures). TEST_staff_isolated@example.com / staff-pass-123 (staff, auto-created).",
+  "seed_data_creation": "TestChatbotAsk auto-seeds a KB entry about MOQ/kurta if not present (idempotent, keyed on 'MOQ' in question). TestQuoteConvertRecalc auto-registers fresh customers with default addresses.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Phase 2 fully validated. 96 backend tests in /app/backend/tests/{backend_test.py, phase2_chatbot_test.py}. All pass except 1 skip on the Gemini-503 confident-answer assertion (transient, external). Phase 3 will build the real storefront/portal/admin panel. /chat-demo and /admin/knowledge-base are TEMPORARY preview pages and can be removed once Phase 3 mounts the widget on the actual storefront. The chatbot_kb collection now has some TEST-UI-KB-* entries left over from Playwright — safe to keep or purge; they don't affect other flows.",
+  "rca of the issue": "N/A — no blocking issues. The only test skip is due to Google's gemini-3.5-flash preview endpoint intermittently returning 503 (high demand). Backend retries 3x with 2s backoff, then returns a graceful fallback SSE with lowConfidence=true + WhatsApp CTA. Test-level retry (3x) was also insufficient during this window. When Google-side congestion clears, the confident-answer path will resume without any code changes."
+}

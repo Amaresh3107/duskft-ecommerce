@@ -13,7 +13,7 @@ from seed import seed_defaults
 from routers import (
     auth, products, categories, banners, shippingzones, bankaccounts, vendors,
     orders, quotes, invoices, payments, customers, returns, printjobs,
-    users, settings, export, activitylog, dashboard,
+    users, settings, export, activitylog, dashboard, chatbot,
 )
 
 app = FastAPI()
@@ -37,6 +37,7 @@ app.include_router(settings.router)
 app.include_router(export.router)
 app.include_router(activitylog.router)
 app.include_router(dashboard.router)
+app.include_router(chatbot.router)
 
 app.add_middleware(
     CORSMiddleware,

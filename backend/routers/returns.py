@@ -21,7 +21,7 @@ RETURN_REASON_CODES = {
     'wrong_item_shipped': {'label': 'Wrong item was shipped', 'paidBy': 'store'},
     'wrong_size_ordered': {'label': 'Wrong size/color ordered by mistake', 'paidBy': 'customer'},
     'changed_mind': {'label': 'Changed mind / no longer needed', 'paidBy': 'customer'},
-    'quality_not_as_expected': {'label': 'Quality not as expected', 'paidBy': 'customer'},
+    'quality_not_as_expected': {'label': 'Quality not as expected', 'paidBy': 'store'},
     'other': {'label': 'Other', 'paidBy': 'customer'},
 }
 
