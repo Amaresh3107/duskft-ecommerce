@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <title>Store</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; color: #222; }
+    code { background: #f1f3f4; padding: 2px 6px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h2>Storefront placeholder</h2>
+  <p>Backend is live. This file is where the real storefront SPA (catalog, cart, checkout) will be built next.</p>
+  <p>Test the API from your browser console on this page:</p>
+  <pre>
+fetch(window.location.href, {
+  method: 'POST',
+  body: JSON.stringify({ action: 'products.list', payload: {} })
+}).then(r => r.json()).then(console.log)
+  </pre>
+</body>
+</html>
