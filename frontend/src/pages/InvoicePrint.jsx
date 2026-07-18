@@ -2,21 +2,41 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Printer } from 'lucide-react';
 import { API } from '../lib/api';
+import { useAuth, customerAuthHeaders } from '../context/AuthContext';
 import { formatCurrency } from '../lib/pricing';
 
 export default function InvoicePrint() {
   const { orderId } = useParams();
+  const { isAuthenticated } = useAuth();
   const [order, setOrder] = useState(null);
   const [settings, setSettings] = useState({});
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
+    setNotFound(false);
     const raw = sessionStorage.getItem(`order_${orderId}`);
-    if (raw) setOrder(JSON.parse(raw));
+    if (raw) {
+      setOrder(JSON.parse(raw));
+    } else if (isAuthenticated) {
+      fetch(`${API}/orders/${orderId}`, { headers: customerAuthHeaders() })
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((data) => {
+          setOrder(data);
+          sessionStorage.setItem(`order_${orderId}`, JSON.stringify(data));
+        })
+        .catch(() => setNotFound(true));
+    } else {
+      setNotFound(true);
+    }
     fetch(`${API}/settings/public`).then((r) => r.json()).then(setSettings).catch(() => {});
-  }, [orderId]);
+  }, [orderId, isAuthenticated]);
 
   if (!order) {
-    return <div className="p-10 text-center text-sm text-[#5E6A7D]">Invoice details are not available on this device.</div>;
+    return (
+      <div className="p-10 text-center text-sm text-[#5E6A7D]">
+        {notFound ? 'Invoice details are not available on this device. Please log in to view this invoice.' : 'Loading invoice...'}
+      </div>
+    );
   }
 
   return (

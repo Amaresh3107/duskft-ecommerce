@@ -1,5 +1,5 @@
 import re
-import uuid
+import random
 from datetime import datetime, timezone
 from database import db
 
@@ -11,7 +11,8 @@ def slugify(text: str) -> str:
 
 def gen_number(prefix: str) -> str:
     stamp = datetime.now(timezone.utc).strftime('%y%m%d-%H%M%S')
-    return f'{prefix}-{stamp}-{uuid.uuid4().hex[:4].upper()}'
+    suffix = f'{random.randint(0, 9999):04d}'
+    return f'{prefix}-{stamp}-{suffix}'
 
 
 def now_iso() -> str:
@@ -83,6 +84,28 @@ async def calculate_tax(subtotal: float, shipping_state: str) -> dict:
         'taxPercent': tax_percent,
         'total': round(cgst + sgst + igst, 2),
     }
+
+
+async def deduct_stock_for_items(items: list):
+    from database import db
+    from bson import ObjectId
+    for item in items:
+        await db.products.update_one(
+            {'_id': ObjectId(item['productId'])},
+            {'$inc': {'stock': -int(item.get('quantity', 0))}},
+        )
+
+
+async def restore_stock_for_items(items: list):
+    from database import db
+    from bson import ObjectId
+    for item in items:
+        product = await db.products.find_one({'_id': ObjectId(item['productId'])})
+        if not product:
+            continue
+        restored = product.get('stock', 0) + int(item.get('quantity', 0))
+        cap = product.get('totalStock', 0) or restored
+        await db.products.update_one({'_id': ObjectId(item['productId'])}, {'$set': {'stock': min(restored, cap)}})
 
 
 async def log_activity(entity_type: str, entity_id: str, action: str, actor_id: str = '', actor_role: str = '', details: dict = None):

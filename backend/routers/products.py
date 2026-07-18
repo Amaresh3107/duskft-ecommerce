@@ -38,6 +38,10 @@ async def get_product(product_id: str):
 
 @router.post('')
 async def create_product(payload: dict, session: dict = Depends(require_roles('admin', 'staff'))):
+    total_stock = int(payload.get('totalStock', payload.get('stock', 0)))
+    stock = int(payload.get('stock', payload.get('totalStock', 0)))
+    if stock > total_stock:
+        raise HTTPException(status_code=400, detail='Current Stock cannot exceed Total Stock.')
     product = Product(
         sku=payload.get('sku', ''),
         name=payload['name'],
@@ -51,7 +55,8 @@ async def create_product(payload: dict, session: dict = Depends(require_roles('a
         tierPricing=payload.get('tierPricing', []),
         basePrice=float(payload.get('basePrice', 0)),
         moq=int(payload.get('moq', 1)),
-        stock=int(payload.get('stock', 0)),
+        totalStock=total_stock,
+        stock=stock,
         status=payload.get('status', 'active'),
         createdAt=now_iso(),
     )
@@ -62,11 +67,19 @@ async def create_product(payload: dict, session: dict = Depends(require_roles('a
 
 @router.put('/{product_id}')
 async def update_product(product_id: str, payload: dict, session: dict = Depends(require_roles('admin', 'staff'))):
+    existing = await db.products.find_one({'_id': ObjectId(product_id)})
+    if not existing:
+        raise HTTPException(status_code=404, detail='Product not found.')
+
+    if 'totalStock' in payload or 'stock' in payload:
+        effective_total = int(payload.get('totalStock', existing.get('totalStock', 0)))
+        effective_stock = int(payload.get('stock', existing.get('stock', 0)))
+        if effective_stock > effective_total:
+            raise HTTPException(status_code=400, detail='Current Stock cannot exceed Total Stock.')
+
     updates = {k: v for k, v in payload.items() if k not in ('id', '_id')}
     updates['updatedAt'] = now_iso()
-    result = await db.products.update_one({'_id': ObjectId(product_id)}, {'$set': updates})
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail='Product not found.')
+    await db.products.update_one({'_id': ObjectId(product_id)}, {'$set': updates})
     doc = await db.products.find_one({'_id': ObjectId(product_id)})
     return Product.from_mongo(doc)
 

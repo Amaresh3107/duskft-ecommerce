@@ -19,6 +19,23 @@ node_modules/
 # Testing
 /coverage
 
+# Backend virtual environment
+backend/venv/
+
+# Frontend dependencies (if not already covered)
+frontend/node_modules/
+
+# Pytest cache
+.pytest_cache/
+
+# Test reports
+test_reports/
+
+# Optional: uploaded images (ONLY if moving to S3 later)
+# backend/uploads/
+
+*.log
+
 # Next.js
 /.next/
 /out/

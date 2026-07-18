@@ -1,12 +1,21 @@
 import { useState, useEffect } from 'react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
-import { ShoppingBag, User, LogOut, MessageCircleQuestion } from 'lucide-react';
+import { ShoppingBag, User, LogOut, MessageCircleQuestion, LayoutDashboard, Package, Heart, MapPin, UserCircle, ChevronDown } from 'lucide-react';
 import { API } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { CartDrawer } from '../components/CartDrawer';
 import { ChatWidget } from '../components/ChatWidget';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '../components/ui/dropdown-menu';
 import { STOREFRONT } from '../constants/testIds';
+
+const ACCOUNT_LINKS = [
+  { to: '/portal/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/portal/orders', label: 'My Orders', icon: Package },
+  { to: '/portal/wishlist', label: 'Wishlist', icon: Heart },
+  { to: '/portal/addresses', label: 'Addresses', icon: MapPin },
+  { to: '/portal/profile', label: 'Profile', icon: UserCircle },
+];
 
 export default function StorefrontLayout() {
   const [settings, setSettings] = useState({ storeName: 'Antigravity Wholesale', whatsappNumber: '' });
@@ -38,12 +47,30 @@ export default function StorefrontLayout() {
               Catalog
             </Link>
             {isAuthenticated ? (
-              <div className="flex items-center gap-3">
-                <span className="hidden text-sm text-[#5E6A7D] sm:inline">{user?.name?.split(' ')[0]}</span>
-                <button data-testid={STOREFRONT.logoutButton} onClick={handleLogout} className="text-[#5E6A7D] transition-colors hover:text-[#EF4444]">
-                  <LogOut size={18} />
-                </button>
-              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger className="flex items-center gap-1 text-sm text-[#5E6A7D] outline-none transition-colors hover:text-[#FF4500]">
+                  <span className="hidden sm:inline">{user?.name?.split(' ')[0]}</span>
+                  <User size={19} className="sm:hidden" />
+                  <ChevronDown size={14} className="hidden sm:inline" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  {ACCOUNT_LINKS.map(({ to, label, icon: Icon }) => (
+                    <DropdownMenuItem key={to} asChild>
+                      <Link to={to} className="flex items-center gap-2 cursor-pointer">
+                        <Icon size={15} /> {label}
+                      </Link>
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    data-testid={STOREFRONT.logoutButton}
+                    onClick={handleLogout}
+                    className="flex items-center gap-2 cursor-pointer text-[#EF4444] focus:text-[#EF4444]"
+                  >
+                    <LogOut size={15} /> Log out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             ) : (
               <Link data-testid={STOREFRONT.accountLink} to="/login" className="text-[#121826] transition-colors hover:text-[#FF4500]">
                 <User size={19} />

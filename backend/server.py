@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 import os
@@ -13,7 +14,7 @@ from seed import seed_defaults
 from routers import (
     auth, products, categories, banners, shippingzones, bankaccounts, vendors,
     orders, quotes, invoices, payments, customers, returns, printjobs,
-    users, settings, export, activitylog, dashboard, chatbot,
+    users, settings, export, activitylog, dashboard, chatbot, uploads,
 )
 
 app = FastAPI()
@@ -38,6 +39,11 @@ app.include_router(export.router)
 app.include_router(activitylog.router)
 app.include_router(dashboard.router)
 app.include_router(chatbot.router)
+app.include_router(uploads.router)
+
+UPLOAD_DIR = ROOT_DIR / 'uploads'
+UPLOAD_DIR.mkdir(exist_ok=True)
+app.mount('/uploads', StaticFiles(directory=str(UPLOAD_DIR)), name='uploads')
 
 app.add_middleware(
     CORSMiddleware,

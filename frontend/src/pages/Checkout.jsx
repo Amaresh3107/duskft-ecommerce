@@ -4,7 +4,7 @@ import { toast } from '../components/ui/sonner';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
-import { API, formatApiErrorDetail } from '../lib/api';
+import { API, formatApiErrorDetail, resolveImageUrl } from '../lib/api';
 import { useAuth, customerAuthHeaders } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { cartTotals, formatCurrency } from '../lib/pricing';
@@ -189,7 +189,7 @@ export default function Checkout() {
             {paymentMethod === 'upi' && bankAccount && (
               <div data-testid={CHECKOUT.upiDetails} className="mt-3 rounded-lg border border-black/10 bg-[#F3F1EC] p-4 text-sm">
                 <p><strong>UPI ID:</strong> {bankAccount.upiId}</p>
-                {bankAccount.qrImageUrl && <img src={bankAccount.qrImageUrl} alt="UPI QR" className="mt-2 h-32 w-32" />}
+                {bankAccount.qrImageUrl && <img src={resolveImageUrl(bankAccount.qrImageUrl)} alt="UPI QR" className="mt-2 h-32 w-32" />}
               </div>
             )}
           </section>

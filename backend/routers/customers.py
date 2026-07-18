@@ -54,6 +54,12 @@ async def save_address(payload: dict, session: dict = Depends(get_session)):
     else:
         result = await db.addresses.insert_one(record)
         doc = await db.addresses.find_one({'_id': result.inserted_id})
+    # Only one address can be default at a time — unset it on all others.
+    if record['isDefault']:
+        await db.addresses.update_many(
+            {'customerId': session['user_id'], '_id': {'$ne': doc['_id']}},
+            {'$set': {'isDefault': False}},
+        )
     return Address.from_mongo(doc)
 
 

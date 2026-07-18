@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowUpRight, Truck, ShieldCheck, Percent } from 'lucide-react';
-import { API } from '../lib/api';
+import { API, resolveImageUrl } from '../lib/api';
 import { ProductCard } from '../components/ProductCard';
 import { STOREFRONT } from '../constants/testIds';
 
@@ -73,7 +73,7 @@ export default function StorefrontHome() {
                 className="group relative aspect-[4/3] overflow-hidden rounded-lg bg-[#F3F1EC]"
               >
                 {tileImageForCategory(cat) && (
-                  <img src={tileImageForCategory(cat)} alt={cat.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                  <img src={resolveImageUrl(tileImageForCategory(cat))} alt={cat.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
                 <p className="font-display absolute bottom-3 left-4 text-lg text-white">{cat.name}</p>

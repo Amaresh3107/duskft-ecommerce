@@ -48,6 +48,7 @@ class Product(BaseDocument):
     tierPricing: List[dict] = []
     basePrice: float = 0
     moq: int = 1
+    totalStock: int = 0
     stock: int = 0
     status: str = 'active'
     createdAt: Optional[str] = None
@@ -113,6 +114,7 @@ class Order(BaseDocument):
     paymentMethod: str = 'cod'
     paymentStatus: str = 'pending'
     orderStatus: str = 'pending'
+    stockDeducted: bool = False
     shippingAddress: dict = {}
     notes: str = ''
     deliveredAt: Optional[str] = None

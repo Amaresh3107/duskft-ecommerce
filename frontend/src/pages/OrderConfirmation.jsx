@@ -2,23 +2,48 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { CheckCircle2, Printer } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { API } from '../lib/api';
+import { useAuth, customerAuthHeaders } from '../context/AuthContext';
 import { formatCurrency } from '../lib/pricing';
 import { ORDER_CONFIRM } from '../constants/testIds';
 
 export default function OrderConfirmation() {
   const { orderId } = useParams();
+  const { isAuthenticated } = useAuth();
   const [order, setOrder] = useState(null);
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
+    setNotFound(false);
     const raw = sessionStorage.getItem(`order_${orderId}`);
-    if (raw) setOrder(JSON.parse(raw));
-  }, [orderId]);
+    if (raw) {
+      setOrder(JSON.parse(raw));
+      return;
+    }
+    // Fall back to the API for logged-in customers (e.g. page refresh, revisit, new tab).
+    // Guests have no lookup token in this MVP, so they only get the sessionStorage copy.
+    if (isAuthenticated) {
+      fetch(`${API}/orders/${orderId}`, { headers: customerAuthHeaders() })
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((data) => {
+          setOrder(data);
+          sessionStorage.setItem(`order_${orderId}`, JSON.stringify(data));
+        })
+        .catch(() => setNotFound(true));
+    } else {
+      setNotFound(true);
+    }
+  }, [orderId, isAuthenticated]);
 
   if (!order) {
     return (
       <div className="mx-auto max-w-lg px-5 py-24 text-center">
-        <p className="text-sm text-[#5E6A7D]">We couldn't find that order's details on this device. If you're a registered customer, check your Portal order history.</p>
-        <Link to="/catalog" className="mt-3 inline-block text-sm text-[#0B132B] underline">Continue shopping</Link>
+        <p className="text-sm text-[#5E6A7D]">
+          {notFound
+            ? "We couldn't find that order's details on this device. If you're a registered customer, check your Portal order history."
+            : 'Loading order...'}
+        </p>
+        {notFound && <Link to="/catalog" className="mt-3 inline-block text-sm text-[#0B132B] underline">Continue shopping</Link>}
       </div>
     );
   }

@@ -4,6 +4,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from './ui/sheet';
 import { Button } from './ui/button';
 import { useCart, lineKey } from '../context/CartContext';
 import { cartTotals, moqStatusByProduct, formatCurrency } from '../lib/pricing';
+import { resolveImageUrl } from '../lib/api';
 import { CART } from '../constants/testIds';
 
 export const CartDrawer = () => {
@@ -37,7 +38,7 @@ export const CartDrawer = () => {
               ))}
               {priced.map((l, i) => (
                 <div key={lineKey(l)} data-testid={CART.line(i)} className="flex gap-3 border-b border-black/5 pb-4">
-                  <img src={l.image} alt={l.name} className="h-16 w-16 rounded-md object-cover" />
+                  <img src={resolveImageUrl(l.image)} alt={l.name} className="h-16 w-16 rounded-md object-cover" />
                   <div className="flex-1">
                     <p className="text-sm font-medium text-[#121826]">{l.name}</p>
                     <p className="text-xs text-[#5E6A7D]">{l.color} / {l.size}</p>

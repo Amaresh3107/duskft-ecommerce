@@ -3,7 +3,7 @@ from bson import ObjectId
 from database import db
 from models import Order
 from deps import require_roles, get_optional_session, get_session
-from business import calculate_price, calculate_shipping, calculate_tax, gen_number, now_iso, log_activity
+from business import calculate_price, calculate_shipping, calculate_tax, gen_number, now_iso, log_activity, deduct_stock_for_items, restore_stock_for_items
 
 router = APIRouter(prefix='/api/orders', tags=['orders'])
 
@@ -131,6 +131,17 @@ async def update_order_status(order_id: str, payload: dict, session: dict = Depe
     updates = {'orderStatus': status, 'updatedAt': now_iso()}
     if status == 'delivered':
         updates['deliveredAt'] = now_iso()
+
+    # Stock is deducted the moment an admin/staff confirms an order — not at
+    # checkout — per business decision. Deduct exactly once (guarded by
+    # stockDeducted), and restore it if a confirmed+ order is cancelled
+    # before shipping.
+    if status == 'confirmed' and not doc.get('stockDeducted'):
+        await deduct_stock_for_items(doc.get('items', []))
+        updates['stockDeducted'] = True
+    elif status == 'cancelled' and doc.get('stockDeducted'):
+        await restore_stock_for_items(doc.get('items', []))
+        updates['stockDeducted'] = False
 
     await db.orders.update_one({'_id': ObjectId(order_id)}, {'$set': updates})
     await log_activity('order', order_id, f'status_changed:{current}->{status}', session['user_id'], session['role'])

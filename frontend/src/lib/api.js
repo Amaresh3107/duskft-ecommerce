@@ -1,5 +1,11 @@
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+export { BACKEND_URL };
 export const API = `${BACKEND_URL}/api`;
+
+export function resolveImageUrl(url) {
+  if (!url) return url;
+  return /^https?:\/\//.test(url) ? url : `${BACKEND_URL}${url}`;
+}
 
 export function getAuthHeaders() {
   const token = localStorage.getItem('kb_admin_token');

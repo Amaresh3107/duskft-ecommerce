@@ -3,7 +3,7 @@ from bson import ObjectId
 from database import db
 from models import Quote, Order
 from deps import require_roles, get_session
-from business import calculate_price, calculate_shipping, calculate_tax, gen_number, now_iso, log_activity
+from business import calculate_price, calculate_shipping, calculate_tax, gen_number, now_iso, log_activity, deduct_stock_for_items
 
 router = APIRouter(prefix='/api/quotes', tags=['quotes'])
 
@@ -119,11 +119,13 @@ async def convert_to_order(quote_id: str, session: dict = Depends(require_roles(
         paymentMethod='bank_transfer',
         paymentStatus='pending',
         orderStatus='confirmed',
+        stockDeducted=True,
         shippingAddress=shipping_address,
         notes=f'Converted from quote {quote["quoteNumber"]}',
         createdAt=now_iso(),
     )
     result = await db.orders.insert_one(order.to_mongo())
+    await deduct_stock_for_items(quote['items'])
     await db.quotes.update_one({'_id': ObjectId(quote_id)}, {'$set': {'status': 'converted', 'convertedOrderId': str(result.inserted_id), 'updatedAt': now_iso()}})
     await log_activity('quote', quote_id, 'converted_to_order', session['user_id'], session['role'], {'orderId': str(result.inserted_id)})
     doc = await db.orders.find_one({'_id': result.inserted_id})

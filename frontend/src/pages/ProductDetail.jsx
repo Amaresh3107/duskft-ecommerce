@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { Heart, MessageCircle } from 'lucide-react';
 import { toast } from '../components/ui/sonner';
 import { Button } from '../components/ui/button';
-import { API } from '../lib/api';
+import { API, resolveImageUrl } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { customerAuthHeaders } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
@@ -81,14 +81,14 @@ export default function ProductDetail() {
       <div className="grid grid-cols-1 gap-10 md:grid-cols-2">
         <div>
           <div data-testid={PDP.gallery} className="aspect-square overflow-hidden rounded-lg bg-[#F3F1EC]">
-            <img src={product.images?.[activeImage]} alt={product.name} className="h-full w-full object-cover" />
+            <img src={resolveImageUrl(product.images?.[activeImage])} alt={product.name} className="h-full w-full object-cover" />
           </div>
           {product.images?.length > 1 && (
             <div className="mt-3 flex gap-2">
               {product.images.map((img, i) => (
                 <button key={i} data-testid={PDP.thumbnail(i)} onClick={() => setActiveImage(i)}
                         className={`h-16 w-16 overflow-hidden rounded-md border-2 ${i === activeImage ? 'border-[#FF4500]' : 'border-transparent'}`}>
-                  <img src={img} alt="" className="h-full w-full object-cover" />
+                  <img src={resolveImageUrl(img)} alt="" className="h-full w-full object-cover" />
                 </button>
               ))}
             </div>

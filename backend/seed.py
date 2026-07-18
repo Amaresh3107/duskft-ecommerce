@@ -78,7 +78,7 @@ async def seed_defaults():
                 'images': ['https://images.unsplash.com/photo-1583391733956-6c78276477e2'], 'videoUrl': '',
                 'colors': ['White', 'Sky Blue', 'Mint'], 'sizes': ['S', 'M', 'L', 'XL'],
                 'tierPricing': [{'minQty': 1, 'price': 650}, {'minQty': 50, 'price': 550}, {'minQty': 200, 'price': 480}],
-                'basePrice': 650, 'moq': 20, 'stock': 500, 'status': 'active', 'createdAt': now_iso(),
+                'basePrice': 650, 'moq': 20, 'totalStock': 500, 'stock': 500, 'status': 'active', 'createdAt': now_iso(),
             },
             {
                 'sku': 'DRS-001', 'name': 'Printed Rayon Wrap Dress', 'slug': 'printed-rayon-wrap-dress',
@@ -86,7 +86,7 @@ async def seed_defaults():
                 'images': ['https://images.unsplash.com/photo-1595777457583-95e059d581b8'], 'videoUrl': '',
                 'colors': ['Maroon', 'Navy', 'Emerald'], 'sizes': ['S', 'M', 'L', 'XL', 'XXL'],
                 'tierPricing': [{'minQty': 1, 'price': 890}, {'minQty': 30, 'price': 760}, {'minQty': 100, 'price': 680}],
-                'basePrice': 890, 'moq': 15, 'stock': 300, 'status': 'active', 'createdAt': now_iso(),
+                'basePrice': 890, 'moq': 15, 'totalStock': 300, 'stock': 300, 'status': 'active', 'createdAt': now_iso(),
             },
             {
                 'sku': 'SHT-001', 'name': 'Slim Fit Formal Shirt', 'slug': 'slim-fit-formal-shirt',
@@ -94,7 +94,7 @@ async def seed_defaults():
                 'images': ['https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf'], 'videoUrl': '',
                 'colors': ['White', 'Light Blue', 'Black'], 'sizes': ['38', '40', '42', '44'],
                 'tierPricing': [{'minQty': 1, 'price': 750}, {'minQty': 40, 'price': 640}, {'minQty': 150, 'price': 570}],
-                'basePrice': 750, 'moq': 25, 'stock': 400, 'status': 'active', 'createdAt': now_iso(),
+                'basePrice': 750, 'moq': 25, 'totalStock': 400, 'stock': 400, 'status': 'active', 'createdAt': now_iso(),
             },
         ]
         await db.products.insert_many(products)

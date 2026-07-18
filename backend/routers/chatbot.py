@@ -1,3 +1,10 @@
+try:
+    from emergentintegrations.llm.chat import LlmChat, UserMessage, TextDelta, StreamDone
+    CHATBOT_AVAILABLE = True
+except ImportError:
+    CHATBOT_AVAILABLE = False
+
+
 import json
 import re
 import uuid
@@ -5,7 +12,7 @@ import asyncio
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from bson import ObjectId
-from emergentintegrations.llm.chat import LlmChat, UserMessage, TextDelta, StreamDone
+#from emergentintegrations.llm.chat import LlmChat, UserMessage, TextDelta, StreamDone
 from database import db
 from models import ChatbotKB
 from deps import require_roles, get_optional_session
@@ -152,6 +159,13 @@ async def ask(payload: dict):
         "plainly and suggest reaching out on WhatsApp for a quick human reply — do not guess.\n\n"
         f"CONTEXT:\n{context if context.strip() else 'No specific context matched this question.'}"
     )
+    #Tempoprary
+    if not CHATBOT_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail="Chatbot service unavailable. Configure Gemini integration."
+            )
+    #temporary
 
     chat = LlmChat(api_key=api_key, session_id=session_id, system_message=system_message).with_model('gemini', model)
 

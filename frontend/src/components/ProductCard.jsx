@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { formatCurrency } from '../lib/pricing';
+import { resolveImageUrl } from '../lib/api';
 import { STOREFRONT } from '../constants/testIds';
 
 export const ProductCard = ({ product, index }) => {
@@ -13,7 +14,7 @@ export const ProductCard = ({ product, index }) => {
     >
       <div className="aspect-[4/5] overflow-hidden bg-[#F3F1EC]">
         <img
-          src={product.images?.[0]}
+          src={resolveImageUrl(product.images?.[0])}
           alt={product.name}
           className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
         />
