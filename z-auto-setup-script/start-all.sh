@@ -34,7 +34,7 @@ fi
 # Backend Check
 ########################################
 
-if [ ! -d "../backend/venv" ]; then
+if [ ! -d "backend/venv" ]; then
 
     echo ""
     echo "❌ Backend is not setup."
@@ -53,7 +53,7 @@ echo "Starting Backend..."
 
 osascript <<EOF
 tell application "Terminal"
-    do script "cd $(pwd)/../backend && venv/bin/python -m uvicorn server:app --reload --port 8000"
+    do script "cd $(pwd)/backend && venv/bin/python -m uvicorn server:app --reload --port 8000"
 end tell
 EOF
 
@@ -67,7 +67,7 @@ echo "Starting Frontend..."
 
 osascript <<EOF
 tell application "Terminal"
-    do script "cd $(pwd)/../frontend && npm start"
+    do script "cd $(pwd)/frontend && npm start"
 end tell
 EOF
 

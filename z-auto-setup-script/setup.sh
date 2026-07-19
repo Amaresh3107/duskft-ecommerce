@@ -120,7 +120,7 @@ fi
 echo ""
 echo "========== Backend =========="
 
-cd ../backend
+cd backend/
 
 python3.11 -m venv venv || true
 
@@ -137,7 +137,7 @@ venv/bin/pip install -r requirements.txt
 echo ""
 echo "========== Frontend =========="
 
-cd ../frontend
+cd frontend/
 
 npm install --legacy-peer-deps
 
