@@ -1,11 +1,24 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ChevronLeft, Printer, Check } from 'lucide-react';
-import { API } from '../../lib/api';
+import { ChevronLeft, Printer, Check, RotateCcw, Image as ImageIcon } from 'lucide-react';
+import { API, resolveImageUrl } from '../../lib/api';
 import { customerAuthHeaders } from '../../context/AuthContext';
 import { formatCurrency } from '../../lib/pricing';
+import { Button } from '../../components/ui/button';
+import { Textarea } from '../../components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../components/ui/dialog';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../../components/ui/select';
+import { toast } from '../../components/ui/sonner';
 
 const TIMELINE_STEPS = ['pending', 'confirmed', 'processing', 'shipped', 'delivered'];
+
+const RETURN_STATUS_STYLES = {
+  requested: 'bg-amber-100 text-amber-700',
+  approved: 'bg-blue-100 text-blue-700',
+  received: 'bg-violet-100 text-violet-700',
+  refunded: 'bg-emerald-100 text-emerald-700',
+  rejected: 'bg-red-100 text-red-700',
+};
 
 function StatusTimeline({ status }) {
   if (status === 'cancelled') {
@@ -38,10 +51,180 @@ function StatusTimeline({ status }) {
   );
 }
 
+// Request Return / Replacement — only reachable once an order is delivered
+// (enforced server-side too, within a 7-day window from delivery).
+function ReturnSection({ order, existingReturn, onCreated }) {
+  const [reasonCodes, setReasonCodes] = useState([]);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [reasonCode, setReasonCode] = useState('');
+  const [reasonNotes, setReasonNotes] = useState('');
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [busy, setBusy] = useState(false);
+
+  const openDialog = () => {
+    setReasonCode('');
+    setReasonNotes('');
+    setSelectedItems(order.items.map((_, i) => i));
+    setDialogOpen(true);
+    if (reasonCodes.length === 0) {
+      fetch(`${API}/returns/reason-codes`, { headers: customerAuthHeaders() })
+        .then((r) => r.json())
+        .then(setReasonCodes)
+        .catch(() => {});
+    }
+  };
+
+  const toggleItem = (i) => {
+    setSelectedItems((prev) => (prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i]));
+  };
+
+  const submit = async () => {
+    if (!reasonCode) { toast.error('Select a reason.'); return; }
+    if (selectedItems.length === 0) { toast.error('Select at least one item.'); return; }
+    setBusy(true);
+    try {
+      const res = await fetch(`${API}/returns`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...customerAuthHeaders() },
+        body: JSON.stringify({
+          orderId: order.id,
+          reasonCode,
+          reasonNotes,
+          items: selectedItems.map((i) => order.items[i]),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Could not submit your request.');
+      toast.success('Return request submitted');
+      setDialogOpen(false);
+      onCreated(data);
+    } catch (err) {
+      toast.error(typeof err.message === 'string' ? err.message : 'Could not submit your request.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (order.orderStatus !== 'delivered') return null;
+
+  return (
+    <div className="rounded-md border border-gray-200 bg-white p-5">
+      <h3 className="flex items-center gap-1.5 text-sm font-medium text-[#121826]">
+        <RotateCcw size={15} /> Return / Replacement
+      </h3>
+
+      {existingReturn ? (
+        <div className="mt-2 flex items-center justify-between">
+          <p className="text-sm text-[#5E6A7D] capitalize">{existingReturn.reasonCode.replace(/_/g, ' ')}</p>
+          <span className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${RETURN_STATUS_STYLES[existingReturn.status] || 'bg-gray-100 text-gray-600'}`}>
+            {existingReturn.status}
+          </span>
+        </div>
+      ) : (
+        <>
+          <p className="mt-1 text-xs text-[#5E6A7D]">Within 7 days of delivery, you can request a return or replacement for this order.</p>
+          <Button size="sm" variant="outline" className="mt-3" onClick={openDialog}>Request Return / Replacement</Button>
+        </>
+      )}
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Request Return / Replacement</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="mb-1 block text-xs text-[#5E6A7D]">Which items?</label>
+              <div className="space-y-1.5 rounded-md border border-gray-200 p-2">
+                {order.items.map((item, i) => (
+                  <label key={i} className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={selectedItems.includes(i)} onChange={() => toggleItem(i)} />
+                    {[item.color, item.size].filter(Boolean).join(' / ')} · Qty {item.quantity}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-[#5E6A7D]">Reason</label>
+              <Select value={reasonCode} onValueChange={setReasonCode}>
+                <SelectTrigger><SelectValue placeholder="Select a reason" /></SelectTrigger>
+                <SelectContent>
+                  {reasonCodes.map((r) => <SelectItem key={r.code} value={r.code}>{r.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-[#5E6A7D]">Additional details (optional)</label>
+              <Textarea rows={3} value={reasonNotes} onChange={(e) => setReasonNotes(e.target.value)} />
+            </div>
+            <DialogFooter>
+              <Button onClick={submit} disabled={busy}>{busy ? 'Submitting...' : 'Submit Request'}</Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// Artwork proof review — only shown if admin has created a print job for
+// this order. Customer can approve/reject once a proof has been sent.
+function ArtworkSection({ printJob, onUpdated }) {
+  const [busy, setBusy] = useState(false);
+
+  if (!printJob) return null;
+
+  const respond = async (status) => {
+    setBusy(true);
+    try {
+      const res = await fetch(`${API}/print-jobs/${printJob.id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...customerAuthHeaders() },
+        body: JSON.stringify({ status }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Could not submit your response.');
+      toast.success(status === 'customer_approved' ? 'Proof approved' : 'Proof rejected');
+      onUpdated(data);
+    } catch (err) {
+      toast.error(typeof err.message === 'string' ? err.message : 'Could not submit your response.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className={`rounded-md border p-5 ${printJob.status === 'proof_sent' ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-white'}`}>
+      <h3 className="flex items-center gap-1.5 text-sm font-medium text-[#121826]">
+        <ImageIcon size={15} /> Artwork Proof
+        {printJob.status === 'proof_sent' && (
+          <span className="rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-medium text-amber-800">Action needed</span>
+        )}
+      </h3>
+      <p className="mt-1 text-xs capitalize text-[#5E6A7D]">Status: {printJob.status.replace(/_/g, ' ')}</p>
+
+      {printJob.artworkFiles?.length > 0 && (
+        <div className="mt-3 grid grid-cols-4 gap-2">
+          {printJob.artworkFiles.map((f, i) => (
+            <img key={i} src={resolveImageUrl(typeof f === 'string' ? f : f.url)} alt="Artwork" className="aspect-square rounded-md border border-gray-200 object-cover" />
+          ))}
+        </div>
+      )}
+
+      {printJob.status === 'proof_sent' && (
+        <div className="mt-3 flex gap-2">
+          <Button size="sm" disabled={busy} onClick={() => respond('customer_approved')}>Approve Proof</Button>
+          <Button size="sm" variant="outline" disabled={busy} className="text-red-500 hover:text-red-600" onClick={() => respond('customer_rejected')}>Reject Proof</Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function OrderDetail() {
   const { orderId } = useParams();
   const [order, setOrder] = useState(null);
   const [products, setProducts] = useState({});
+  const [existingReturn, setExistingReturn] = useState(null);
+  const [printJob, setPrintJob] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -61,6 +244,16 @@ export default function OrderDetail() {
         setProducts(Object.fromEntries(entries));
       })
       .catch(() => setError('Could not load this order. It may not exist, or you may not have access to it.'));
+
+    fetch(`${API}/returns`, { headers: customerAuthHeaders() })
+      .then((r) => (r.ok ? r.json() : Promise.reject(r)))
+      .then((list) => setExistingReturn(list.find((r) => r.orderId === orderId) || null))
+      .catch(() => console.error('Could not load return status for this order.'));
+
+    fetch(`${API}/print-jobs`, { headers: customerAuthHeaders() })
+      .then((r) => (r.ok ? r.json() : Promise.reject(r)))
+      .then((list) => setPrintJob(list.find((j) => j.orderId === orderId) || null))
+      .catch(() => console.error('Could not load artwork proof status for this order.'));
   }, [orderId]);
 
   if (error) return <p className="text-sm text-red-500">{error}</p>;
@@ -93,13 +286,15 @@ export default function OrderDetail() {
         <StatusTimeline status={order.orderStatus} />
       </div>
 
+      <ArtworkSection printJob={printJob} onUpdated={setPrintJob} />
+
       <div className="rounded-md border border-gray-200 bg-white">
         {order.items.map((item, i) => {
           const p = products[item.productId];
           return (
             <div key={i} className="flex items-center gap-4 border-b border-gray-100 px-5 py-4 last:border-b-0">
               <img
-                src={p?.images?.[0] || 'https://placehold.co/64x64?text=%20'}
+                src={resolveImageUrl(p?.images?.[0]) || 'https://placehold.co/64x64?text=%20'}
                 alt={p?.name || 'Product'}
                 className="h-14 w-14 rounded-md object-cover"
               />
@@ -139,6 +334,8 @@ export default function OrderDetail() {
           </dl>
         </div>
       </div>
+
+      <ReturnSection order={order} existingReturn={existingReturn} onCreated={setExistingReturn} />
     </div>
   );
 }

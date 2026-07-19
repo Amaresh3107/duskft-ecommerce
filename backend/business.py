@@ -1,5 +1,9 @@
 import re
 import random
+import smtplib
+import asyncio
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from datetime import datetime, timezone
 from database import db
 
@@ -48,6 +52,42 @@ async def set_setting(key: str, value):
     await db.settings.update_one({'_id': key}, {'$set': {'value': value}}, upsert=True)
 
 
+class EmailNotConfigured(Exception):
+    pass
+
+
+def _send_email_sync(host: str, port: int, user: str, password: str, from_email: str, to_email: str, subject: str, html_body: str):
+    msg = MIMEMultipart('alternative')
+    msg['Subject'] = subject
+    msg['From'] = from_email or user
+    msg['To'] = to_email
+    msg.attach(MIMEText(html_body, 'html'))
+
+    with smtplib.SMTP(host, port, timeout=15) as server:
+        server.starttls()
+        server.login(user, password)
+        server.sendmail(from_email or user, [to_email], msg.as_string())
+
+
+async def send_email(to_email: str, subject: str, html_body: str):
+    """Sends an email via SMTP (Gmail/Outlook app-password style). Settings
+    keys used: smtpHost, smtpPort, smtpUser, smtpPassword, sellerEmail
+    (used as the From address if set, falling back to smtpUser)."""
+    settings = await get_settings_dict()
+    host = settings.get('smtpHost')
+    user = settings.get('smtpUser')
+    password = settings.get('smtpPassword')
+    port = int(settings.get('smtpPort') or 587)
+    from_email = settings.get('sellerEmail') or user
+
+    if not host or not user or not password:
+        raise EmailNotConfigured('SMTP is not configured yet — an admin must add SMTP details in Settings.')
+
+    # smtplib is blocking — run it off the event loop so one slow send
+    # doesn't stall every other request being handled by this server.
+    await asyncio.to_thread(_send_email_sync, host, port, user, password, from_email, to_email, subject, html_body)
+
+
 async def calculate_shipping(pincode, subtotal: float) -> float:
     if not pincode:
         return 0
@@ -56,7 +96,7 @@ async def calculate_shipping(pincode, subtotal: float) -> float:
         prefixes = z.get('pincodePrefixes') or []
         if any(str(pincode).startswith(str(p)) for p in prefixes):
             threshold = z.get('freeShippingThreshold')
-            if threshold and subtotal >= float(threshold):
+            if threshold is not None and subtotal >= float(threshold):
                 return 0
             return float(z.get('rate') or 0)
     return 0

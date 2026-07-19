@@ -1,10 +1,3 @@
-try:
-    from emergentintegrations.llm.chat import LlmChat, UserMessage, TextDelta, StreamDone
-    CHATBOT_AVAILABLE = True
-except ImportError:
-    CHATBOT_AVAILABLE = False
-
-
 import json
 import re
 import uuid
@@ -12,7 +5,8 @@ import asyncio
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from bson import ObjectId
-#from emergentintegrations.llm.chat import LlmChat, UserMessage, TextDelta, StreamDone
+from google import genai
+from google.genai import types
 from database import db
 from models import ChatbotKB
 from deps import require_roles, get_optional_session
@@ -22,6 +16,13 @@ router = APIRouter(prefix='/api/chatbot', tags=['chatbot'])
 
 STOPWORDS = {'the', 'a', 'an', 'is', 'are', 'do', 'does', 'what', 'how', 'can', 'i', 'you', 'for', 'of', 'to',
              'in', 'on', 'and', 'or', 'my', 'me', 'your', 'it', 'this', 'that', 'with', 'have', 'has', 'be'}
+
+# Trigger words that indicate the customer is asking about their own
+# order(s) — only then do we pull their order history into context.
+# Per PRD Q14: scoped to order status/history only, not the full Portal
+# (wishlist/addresses/GST have no real chat use case and are sensitive).
+ORDER_KEYWORDS = {'order', 'orders', 'delivery', 'deliver', 'delivered', 'shipped', 'shipment',
+                   'track', 'tracking', 'status', 'invoice', 'purchase', 'arriving', 'arrive'}
 
 
 def keywords(text: str) -> set:
@@ -89,7 +90,7 @@ def fuzzy_score(kw1: set, kw2: set) -> int:
     return score
 
 
-async def build_context(message: str):
+async def build_context(message: str, session: dict | None = None):
     kw = keywords(message)
 
     kb_docs = await db.chatbot_kb.find({'active': True}).to_list(500)
@@ -124,6 +125,27 @@ async def build_context(message: str):
                 f"tier pricing: {tiers or 'none'}, colors: {', '.join(p.get('colors') or [])}, sizes: {', '.join(p.get('sizes') or [])}"
             )
         parts.append('Matching Products:\n' + '\n'.join(lines))
+
+    # Only pull the logged-in customer's own order history in when the
+    # question actually seems to be about it — not on every message.
+    # Per PRD Q14: scoped to order status/history only, not the full Portal.
+    order_context_included = False
+    if session and session.get('role') == 'customer' and (kw & ORDER_KEYWORDS):
+        orders = await db.orders.find({'customerId': session['user_id']}).sort('createdAt', -1).to_list(5)
+        if orders:
+            order_context_included = True
+            lines = []
+            for o in orders:
+                piece_count = sum(i.get('quantity', 0) for i in o.get('items', []))
+                lines.append(
+                    f"{o['orderNumber']} — status: {o['orderStatus']}, placed {o.get('createdAt', '')[:10]}, "
+                    f"{piece_count} pieces, total \u20b9{o.get('total', 0)}"
+                )
+            parts.append(
+                "This customer's recent orders (only share these with THIS customer, never invent order numbers):\n"
+                + '\n'.join(lines)
+            )
+
     parts.append(
         'Store Policy (from Settings):\n'
         f"Store: {settings.get('storeName', '')}\n"
@@ -133,18 +155,18 @@ async def build_context(message: str):
         f"Return policy: {settings.get('returnPolicyText', '')}\n"
     )
     context = '\n\n'.join(parts)
-    low_confidence = not top_kb and not matched_products
+    low_confidence = not top_kb and not matched_products and not order_context_included
     return context, [str(kb['_id']) for kb in top_kb], low_confidence
 
 
 @router.post('/ask')
-async def ask(payload: dict):
+async def ask(payload: dict, session: dict | None = Depends(get_optional_session)):
     message = (payload.get('message') or '').strip()
     session_id = payload.get('sessionId') or str(uuid.uuid4())
     if not message:
         raise HTTPException(status_code=400, detail='Message is required.')
 
-    context, matched_kb_ids, low_confidence = await build_context(message)
+    context, matched_kb_ids, low_confidence = await build_context(message, session)
     settings = await get_settings_dict()
     api_key = settings.get('geminiApiKey')
     model = settings.get('geminiModel') or 'gemini-3.5-flash'
@@ -154,34 +176,37 @@ async def ask(payload: dict):
     base_prompt = settings.get('aiSystemPrompt') or 'You are a helpful assistant for a wholesale clothing store.'
     system_message = (
         f"{base_prompt}\n\n"
-        "Answer ONLY using the context below. Never invent product names, prices, MOQs, or policies that are not in the context. "
-        "Keep answers short and practical for a B2B wholesale buyer. If the context does not contain a confident answer, say so "
-        "plainly and suggest reaching out on WhatsApp for a quick human reply — do not guess.\n\n"
+        "Answer ONLY using the context below. Never invent product names, prices, MOQs, order numbers, or policies "
+        "that are not in the context. Keep answers short and practical for a B2B wholesale buyer. If the context does "
+        "not contain a confident answer, say so plainly and suggest reaching out on WhatsApp for a quick human reply — "
+        "do not guess. If order details are present in the context, they belong to the customer you are currently "
+        "talking to — never suggest they belong to anyone else. If the customer asks a vague order question (e.g. "
+        "\"where is my order\") without naming a specific order, don't dump the whole order list — briefly ask which "
+        "order they mean (by order number, or \"your most recent one\"). If they DO specify an order — by number, or "
+        "by saying something like \"my latest/most recent order\" — answer directly with that order's status, no need "
+        "to ask again.\n\n"
         f"CONTEXT:\n{context if context.strip() else 'No specific context matched this question.'}"
     )
-    #Tempoprary
-    if not CHATBOT_AVAILABLE:
-        raise HTTPException(
-            status_code=503,
-            detail="Chatbot service unavailable. Configure Gemini integration."
-            )
-    #temporary
 
-    chat = LlmChat(api_key=api_key, session_id=session_id, system_message=system_message).with_model('gemini', model)
+    client = genai.Client(api_key=api_key)
 
     async def event_generator():
         full_text = ''
+        low_conf = low_confidence
         attempts = 0
         while attempts < 3:
             attempts += 1
             full_text = ''
             try:
-                async for event in chat.stream_message(UserMessage(text=message)):
-                    if isinstance(event, TextDelta):
-                        full_text += event.content
-                        yield f"data: {json.dumps({'delta': event.content})}\n\n"
-                    elif isinstance(event, StreamDone):
-                        break
+                stream = await client.aio.models.generate_content_stream(
+                    model=model,
+                    contents=message,
+                    config=types.GenerateContentConfig(system_instruction=system_message),
+                )
+                async for chunk in stream:
+                    if chunk.text:
+                        full_text += chunk.text
+                        yield f"data: {json.dumps({'delta': chunk.text})}\n\n"
                 low_conf = low_confidence
                 break
             except Exception:

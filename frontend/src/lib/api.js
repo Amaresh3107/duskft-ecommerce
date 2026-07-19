@@ -7,11 +7,6 @@ export function resolveImageUrl(url) {
   return /^https?:\/\//.test(url) ? url : `${BACKEND_URL}${url}`;
 }
 
-export function getAuthHeaders() {
-  const token = localStorage.getItem('kb_admin_token');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 export function formatApiErrorDetail(detail) {
   if (detail == null) return 'Something went wrong. Please try again.';
   if (typeof detail === 'string') return detail;

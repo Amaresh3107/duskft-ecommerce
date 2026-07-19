@@ -42,6 +42,25 @@ async def create_user(payload: dict, session: dict = Depends(require_roles('admi
 
 @router.put('/{user_id}')
 async def update_user(user_id: str, payload: dict, session: dict = Depends(require_roles('admin'))):
+    existing = await db.users.find_one({'_id': ObjectId(user_id)})
+    if not existing:
+        raise HTTPException(status_code=404, detail='User not found.')
+
+    would_lose_admin = (
+        existing.get('role') == 'admin'
+        and existing.get('status', 'active') == 'active'
+        and ('role' in payload and payload['role'] != 'admin' or 'status' in payload and payload['status'] != 'active')
+    )
+    if would_lose_admin:
+        other_active_admins = await db.users.count_documents(
+            {'role': 'admin', 'status': 'active', '_id': {'$ne': ObjectId(user_id)}}
+        )
+        if other_active_admins == 0:
+            raise HTTPException(
+                status_code=400,
+                detail='Cannot deactivate or demote the last active admin — this would lock everyone out. Promote another account to admin first.',
+            )
+
     updates = {}
     if 'role' in payload and payload['role'] in ('admin', 'staff'):
         updates['role'] = payload['role']
@@ -52,8 +71,6 @@ async def update_user(user_id: str, payload: dict, session: dict = Depends(requi
     if payload.get('password'):
         updates['passwordHash'] = hash_password(payload['password'])
 
-    result = await db.users.update_one({'_id': ObjectId(user_id)}, {'$set': updates})
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail='User not found.')
+    await db.users.update_one({'_id': ObjectId(user_id)}, {'$set': updates})
     doc = await db.users.find_one({'_id': ObjectId(user_id)})
     return safe_user(doc)

@@ -102,8 +102,15 @@ async def dashboard(session: dict = Depends(get_session)):
         raise HTTPException(status_code=403, detail='Not a customer session.')
     orders = await db.orders.find({'customerId': session['user_id']}).sort('createdAt', -1).to_list(1000)
     active_orders = [o for o in orders if o['orderStatus'] in ('pending', 'confirmed', 'processing', 'shipped')]
-    total_spent = sum(o.get('total', 0) for o in orders)
-    total_pieces = sum(sum(i.get('quantity', 0) for i in o.get('items', [])) for o in orders)
+    # "Total spent" excludes cancelled orders — money never actually committed.
+    total_spent = sum(o.get('total', 0) for o in orders if o['orderStatus'] != 'cancelled')
+    # "Pieces ordered" only counts orders that reached confirmed+ (i.e. stock was
+    # actually deducted for them), not pending (not yet committed) or cancelled.
+    counted_statuses = ('confirmed', 'processing', 'shipped', 'delivered')
+    total_pieces = sum(
+        sum(i.get('quantity', 0) for i in o.get('items', []))
+        for o in orders if o['orderStatus'] in counted_statuses
+    )
 
     def order_out(o):
         d = dict(o)

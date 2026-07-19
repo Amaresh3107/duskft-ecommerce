@@ -46,8 +46,8 @@ const NAV_GROUPS = [
   {
     label: 'Access & AI',
     items: [
-      { to: '/admin/users', label: 'User Management', icon: Users, enabled: false, adminOnly: true },
-      { to: '/admin/knowledge-base', label: 'Knowledge Base', icon: BrainCircuit, enabled: false },
+      { to: '/admin/users', label: 'User Management', icon: Users, enabled: true, adminOnly: true },
+      { to: '/admin/knowledge-base', label: 'Knowledge Base', icon: BrainCircuit, enabled: true },
     ],
   },
 ];

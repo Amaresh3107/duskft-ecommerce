@@ -24,6 +24,7 @@ export default function Orders() {
   const [orders, setOrders] = useState(null);
   const [categories, setCategories] = useState({});
   const [products, setProducts] = useState({});
+  const [invoicesByOrder, setInvoicesByOrder] = useState({});
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('all');
   const [selected, setSelected] = useState(null);
@@ -41,6 +42,10 @@ export default function Orders() {
     fetch(`${API}/categories?includeInactive=true`, { headers: adminAuthHeaders() })
       .then((r) => r.json())
       .then((list) => setCategories(Object.fromEntries(list.map((c) => [c.id, c.name]))))
+      .catch(() => {});
+    fetch(`${API}/invoices`, { headers: adminAuthHeaders() })
+      .then((r) => r.json())
+      .then((list) => setInvoicesByOrder(Object.fromEntries(list.map((i) => [i.orderId, i.invoiceNumber]))))
       .catch(() => {});
   }, []);
 
@@ -92,6 +97,7 @@ export default function Orders() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(formatApiErrorDetail(data.detail));
+      setInvoicesByOrder((prev) => ({ ...prev, [order.id]: data.invoiceNumber }));
       toast.success(`Invoice ${data.invoiceNumber} ready — see Invoices tab.`);
     } catch (err) {
       toast.error(err.message);
@@ -104,8 +110,9 @@ export default function Orders() {
   if (!orders) return <p className="text-sm text-[#5E6A7D]">Loading...</p>;
 
   const visible = filter === 'all' ? orders : orders.filter((o) => o.orderStatus === filter);
-  const nextStatus = selected ? PIPELINE[PIPELINE.indexOf(selected.orderStatus) + 1] : null;
-  const canCancel = selected && ['pending', 'confirmed', 'processing'].includes(selected.orderStatus);
+  const currentPipelineIndex = selected ? PIPELINE.indexOf(selected.orderStatus) : -1;
+  const nextStatus = currentPipelineIndex >= 0 && currentPipelineIndex < PIPELINE.length - 1 ? PIPELINE[currentPipelineIndex + 1] : null;
+  const canCancel = selected && selected.orderStatus !== 'delivered' && selected.orderStatus !== 'cancelled';
 
   return (
     <div className="space-y-6">
@@ -172,6 +179,20 @@ export default function Orders() {
               </DialogHeader>
 
               <div className="space-y-4">
+                <div className="rounded-md border border-gray-200 bg-white p-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-[#121826]">{selected.customerName || 'Guest'}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${selected.customerId ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {selected.customerId ? 'Registered Customer' : 'Guest'}
+                    </span>
+                  </div>
+                  {!selected.customerId && (selected.guestEmail || selected.guestPhone) && (
+                    <p className="mt-1 text-xs text-[#5E6A7D]">
+                      {[selected.guestEmail, selected.guestPhone].filter(Boolean).join(' · ')}
+                    </p>
+                  )}
+                </div>
+
                 {(() => {
                   const cats = [...new Set(
                     selected.items
@@ -237,9 +258,17 @@ export default function Orders() {
                       <X size={13} /> Cancel Order
                     </Button>
                   )}
-                  <Button size="sm" variant="outline" disabled={busy} onClick={() => generateInvoice(selected)}>
-                    Generate Invoice
-                  </Button>
+                  {selected.orderStatus !== 'cancelled' && (
+                    invoicesByOrder[selected.id] ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-sm text-[#5E6A7D]">
+                        Invoice generated ({invoicesByOrder[selected.id]})
+                      </span>
+                    ) : (
+                      <Button size="sm" variant="outline" disabled={busy} onClick={() => generateInvoice(selected)}>
+                        Generate Invoice
+                      </Button>
+                    )
+                  )}
                 </div>
                 {selected.orderStatus === 'pending' && (
                   <p className="text-[11px] text-[#B7BFC9]">Confirming this order will deduct stock for its items.</p>

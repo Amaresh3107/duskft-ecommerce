@@ -14,7 +14,6 @@ import InvoicePrint from "@/pages/InvoicePrint";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import ChatDemo from "@/pages/ChatDemo";
-import KnowledgeBaseAdmin from "@/pages/KnowledgeBaseAdmin";
 import AdminLayout from "@/layouts/AdminLayout";
 import AdminLogin from "@/pages/admin/AdminLogin";
 import AdminDashboard from "@/pages/admin/Dashboard";
@@ -29,6 +28,8 @@ import AdminPrintJobs from "@/pages/admin/PrintJobs";
 import AdminShippingZones from "@/pages/admin/ShippingZones";
 import AdminBankAccounts from "@/pages/admin/BankAccounts";
 import AdminSettings from "@/pages/admin/Settings";
+import AdminUserManagement from "@/pages/admin/UserManagement";
+import AdminKnowledgeBase from "@/pages/admin/KnowledgeBase";
 import PortalLayout from "@/layouts/PortalLayout";
 import PortalDashboard from "@/pages/portal/Dashboard";
 import PortalOrders from "@/pages/portal/Orders";
@@ -64,7 +65,6 @@ function App() {
               </Route>
               <Route path="/invoice/:orderId" element={<InvoicePrint />} />
               <Route path="/chat-demo" element={<ChatDemo />} />
-              <Route path="/admin/knowledge-base" element={<KnowledgeBaseAdmin />} />
               <Route path="/admin/login" element={<AdminLogin />} />
               <Route path="/admin" element={<AdminLayout />}>
                 <Route path="dashboard" element={<AdminDashboard />} />
@@ -79,6 +79,8 @@ function App() {
                 <Route path="shipping-zones" element={<AdminShippingZones />} />
                 <Route path="bank-accounts" element={<AdminBankAccounts />} />
                 <Route path="settings" element={<AdminSettings />} />
+                <Route path="users" element={<AdminUserManagement />} />
+                <Route path="knowledge-base" element={<AdminKnowledgeBase />} />
               </Route>
             </Routes>
           </BrowserRouter>

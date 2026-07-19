@@ -3,6 +3,7 @@ import { MessageCircle, X, Send, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from './ui/button';
 import { API } from '../lib/api';
+import { customerAuthHeaders } from '../context/AuthContext';
 import { CHAT_WIDGET } from '../constants/testIds';
 
 function getSessionId() {
@@ -46,7 +47,7 @@ export const ChatWidget = () => {
     try {
       const res = await fetch(`${API}/chatbot/ask`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...customerAuthHeaders() },
         body: JSON.stringify({ message: text, sessionId: sessionIdRef.current }),
       });
       if (!res.ok || !res.body) throw new Error('Chat request failed.');

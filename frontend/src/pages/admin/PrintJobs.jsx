@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, ChevronRight } from 'lucide-react';
+import { Plus, ChevronRight, Trash2 } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Textarea } from '../../components/ui/textarea';
@@ -8,7 +8,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '.
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../components/ui/table';
 import { toast } from '../../components/ui/sonner';
 import { API, formatApiErrorDetail } from '../../lib/api';
-import { adminAuthHeaders } from '../../context/AdminAuthContext';
+import { adminAuthHeaders, useAdminAuth } from '../../context/AdminAuthContext';
 import { formatCurrency } from '../../lib/pricing';
 import { ImageUploader } from '../../components/admin/ImageUploader';
 
@@ -23,7 +23,41 @@ const STATUS_STYLES = {
   customer_rejected: 'bg-red-100 text-red-700',
 };
 
+function AuditTrail({ jobId }) {
+  const [entries, setEntries] = useState(null);
+
+  useEffect(() => {
+    fetch(`${API}/activity-log?entityType=print_job&entityId=${jobId}`, { headers: adminAuthHeaders() })
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setEntries)
+      .catch(() => setEntries([]));
+  }, [jobId]);
+
+  if (!entries) return null;
+
+  return (
+    <div className="border-t border-gray-100 pt-3">
+      <p className="mb-1.5 text-xs font-medium text-[#121826]">Audit Trail</p>
+      {entries.length === 0 ? (
+        <p className="text-xs text-[#B7BFC9]">No status changes logged yet.</p>
+      ) : (
+        <ul className="space-y-1">
+          {entries.map((e) => (
+            <li key={e.id} className="text-xs text-[#5E6A7D]">
+              <span className="text-[#B7BFC9]">{new Date(e.createdAt).toLocaleString('en-IN')}</span>
+              {' — '}
+              {e.action.replace('status_changed:', '').replace('->', ' → ')}
+              {e.actorRole ? ` (by ${e.actorRole})` : ''}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export default function PrintJobs() {
+  const { isAdmin } = useAdminAuth();
   const [jobs, setJobs] = useState(null);
   const [orders, setOrders] = useState([]);
   const [vendors, setVendors] = useState([]);
@@ -114,6 +148,23 @@ export default function PrintJobs() {
     }
   };
 
+  const deleteJob = async () => {
+    if (!window.confirm('Permanently delete this print job? This cannot be undone.')) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`${API}/print-jobs/${selected.id}`, { method: 'DELETE', headers: adminAuthHeaders() });
+      const data = await res.json();
+      if (!res.ok) throw new Error(formatApiErrorDetail(data.detail));
+      toast.success('Print job deleted');
+      setSelected(null);
+      load();
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (error) return <p className="text-sm text-red-500">{error}</p>;
   if (!jobs) return <p className="text-sm text-[#5E6A7D]">Loading...</p>;
 
@@ -190,7 +241,14 @@ export default function PrintJobs() {
           {selected && (
             <>
               <DialogHeader>
-                <DialogTitle>{orderMap[selected.orderId]?.orderNumber || 'Print Job'}</DialogTitle>
+                <div className="flex items-center justify-between pr-6">
+                  <DialogTitle>{orderMap[selected.orderId]?.orderNumber || 'Print Job'}</DialogTitle>
+                  {isAdmin && (
+                    <button onClick={deleteJob} disabled={busy} className="flex items-center gap-1 text-xs text-[#5E6A7D] hover:text-red-500">
+                      <Trash2 size={13} /> Delete
+                    </button>
+                  )}
+                </div>
               </DialogHeader>
               <div className="space-y-4">
                 <div>
@@ -243,6 +301,8 @@ export default function PrintJobs() {
                 <p className="text-[11px] text-[#B7BFC9]">
                   "Customer Approved / Rejected" is normally set by the customer once a proof is sent — you can also set it here manually if needed.
                 </p>
+
+                <AuditTrail jobId={selected.id} />
               </div>
             </>
           )}

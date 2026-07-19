@@ -49,6 +49,10 @@ async def seed_defaults():
         'geminiApiKey': os.environ.get('GEMINI_API_KEY', ''),
         'geminiModel': os.environ.get('GEMINI_MODEL', 'gemini-3.5-flash'),
         'aiSystemPrompt': 'You are a helpful assistant for a wholesale clothing store. Answer questions about products, MOQ, tier pricing, shipping and orders using only the provided context. If unsure, say you are not sure and offer to connect the customer over WhatsApp.',
+        'smtpHost': os.environ.get('SMTP_HOST', ''),
+        'smtpPort': os.environ.get('SMTP_PORT', '587'),
+        'smtpUser': os.environ.get('SMTP_USER', ''),
+        'smtpPassword': os.environ.get('SMTP_PASSWORD', ''),
     }
     for key, value in default_settings.items():
         existing = await db.settings.find_one({'_id': key})
@@ -108,4 +112,33 @@ async def seed_defaults():
     if await db.bank_accounts.count_documents({}) == 0:
         await db.bank_accounts.insert_many([
             {'accountName': 'Antigravity Wholesale Pvt Ltd', 'accountNumber': '000123456789', 'ifsc': 'HDFC0001234', 'bankName': 'HDFC Bank', 'upiId': 'antigravity@hdfcbank', 'qrImageUrl': '', 'active': True},
+        ])
+
+    if await db.chatbot_kb.count_documents({}) == 0:
+        await db.chatbot_kb.insert_many([
+            {
+                'question': 'What is the minimum order quantity?',
+                'answer': 'MOQ varies by product and is shown on each product page, typically starting around 15-25 units per style. Larger orders unlock better per-unit pricing through our tier pricing.',
+                'category': 'ordering', 'active': True, 'createdAt': now_iso(),
+            },
+            {
+                'question': 'Do you offer bulk / tier pricing discounts?',
+                'answer': "Yes — every product has tiered pricing where the per-unit price drops as you order more. You'll see the exact tier breakpoints and prices right on the product page.",
+                'category': 'pricing', 'active': True, 'createdAt': now_iso(),
+            },
+            {
+                'question': 'What payment methods do you accept?',
+                'answer': 'We accept Cash on Delivery, direct bank transfer, and UPI. Bank/UPI details are shown at checkout.',
+                'category': 'payments', 'active': True, 'createdAt': now_iso(),
+            },
+            {
+                'question': 'What is your return policy?',
+                'answer': 'Returns can be requested within 7 days of delivery from your account. Depending on the reason, either we or you cover return shipping — this is shown when you submit a return request.',
+                'category': 'returns', 'active': True, 'createdAt': now_iso(),
+            },
+            {
+                'question': 'How long does shipping take?',
+                'answer': 'Delivery timelines depend on your location and are shown at checkout once you enter your pincode — typically a few business days within India.',
+                'category': 'shipping', 'active': True, 'createdAt': now_iso(),
+            },
         ])

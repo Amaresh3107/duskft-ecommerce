@@ -74,7 +74,7 @@ export default function Invoices() {
       const res = await fetch(`${API}/invoices/${inv.id}/email`, { method: 'POST', headers: adminAuthHeaders() });
       const data = await res.json();
       if (!res.ok) throw new Error(formatApiErrorDetail(data.detail));
-      toast.success(`Marked as sent to ${data.to} (email dispatch isn't wired up to a mail provider yet)`);
+      toast.success(`Invoice emailed to ${data.to}`);
     } catch (err) {
       toast.error(err.message);
     }

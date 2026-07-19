@@ -86,3 +86,15 @@ async def update_print_job_status(job_id: str, payload: dict, session: dict = De
     await log_activity('print_job', job_id, f'status_changed:{doc["status"]}->{status}', session['user_id'], session['role'])
     updated = await db.print_jobs.find_one({'_id': ObjectId(job_id)})
     return strip_vendor_cost(updated) if session['role'] == 'customer' else PrintJob.from_mongo(updated)
+
+
+@router.delete('/{job_id}')
+async def delete_print_job(job_id: str, session: dict = Depends(require_roles('admin'))):
+    result = await db.print_jobs.delete_one({'_id': ObjectId(job_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail='Print job not found.')
+    # Activity log entries for this job are intentionally kept — an audit
+    # trail should still show what happened even after the record it was
+    # about is gone.
+    await log_activity('print_job', job_id, 'deleted', session['user_id'], session['role'])
+    return {'success': True}

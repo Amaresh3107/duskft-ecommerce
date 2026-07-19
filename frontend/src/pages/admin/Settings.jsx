@@ -32,9 +32,15 @@ const FIELD_GROUPS = {
     { key: 'geminiModel', label: 'Gemini Model' },
     { key: 'aiSystemPrompt', label: 'AI System Prompt', textarea: true },
   ],
+  email: [
+    { key: 'smtpHost', label: 'SMTP Host (e.g. smtp.gmail.com)' },
+    { key: 'smtpPort', label: 'SMTP Port (587 for Gmail/Outlook)', type: 'number' },
+    { key: 'smtpUser', label: 'SMTP Username (your email address)' },
+    { key: 'smtpPassword', label: 'SMTP App Password', type: 'password' },
+  ],
 };
 
-const TAB_LABELS = { branding: 'Branding', tax_shipping: 'Tax & Shipping', seller: 'Seller Details', ai: 'AI Config' };
+const TAB_LABELS = { branding: 'Branding', tax_shipping: 'Tax & Shipping', seller: 'Seller Details', ai: 'AI Config', email: 'Email (SMTP)' };
 
 export default function Settings() {
   const [values, setValues] = useState(null);
@@ -84,6 +90,15 @@ export default function Settings() {
 
         {Object.entries(FIELD_GROUPS).map(([group, fields]) => (
           <TabsContent key={group} value={group} className="space-y-3">
+            {group === 'email' && (
+              <p className="rounded-md bg-black/5 px-3 py-2 text-xs text-[#5E6A7D]">
+                For Gmail: use smtp.gmail.com, port 587, and an{' '}
+                <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer" className="underline">
+                  App Password
+                </a>{' '}
+                (not your regular password — requires 2-Step Verification on the account). For Outlook: smtp.office365.com, port 587.
+              </p>
+            )}
             {fields.map((f) => (
               <div key={f.key}>
                 <label className="mb-1 block text-xs text-[#5E6A7D]">{f.label}</label>
