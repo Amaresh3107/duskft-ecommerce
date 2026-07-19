@@ -209,6 +209,7 @@ class BankAccount(BaseDocument):
 class User(BaseDocument):
     name: str
     email: str
+    phone: str = ''
     passwordHash: str
     role: str
     status: str = 'active'

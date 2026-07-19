@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { AUTH_PAGES } from '../constants/testIds';
 
 export default function Register() {
-  const [form, setForm] = useState({ name: '', email: '', password: '', businessName: '' });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', businessName: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
@@ -33,6 +33,15 @@ export default function Register() {
       <form onSubmit={submit} className="mt-8 space-y-4">
         <Input data-testid={AUTH_PAGES.registerNameInput} placeholder="Full name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
         <Input data-testid={AUTH_PAGES.registerEmailInput} type="email" placeholder="Email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} required />
+        <Input
+          type="tel"
+          placeholder="Mobile number (10 digits)"
+          value={form.phone}
+          onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
+          pattern="[6-9][0-9]{9}"
+          title="Enter a valid 10-digit mobile number"
+          required
+        />
         <Input data-testid={AUTH_PAGES.registerBusinessNameInput} placeholder="Business name (optional)" value={form.businessName} onChange={(e) => setForm((f) => ({ ...f, businessName: e.target.value }))} />
         <Input data-testid={AUTH_PAGES.registerPasswordInput} type="password" placeholder="Password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} required />
         {error && <p data-testid={AUTH_PAGES.registerError} className="text-sm text-[#EF4444]">{error}</p>}

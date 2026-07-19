@@ -3,7 +3,7 @@ from bson import ObjectId
 from database import db
 from models import Address, Customer
 from deps import require_roles, get_session
-from business import now_iso
+from business import now_iso, is_valid_phone
 
 router = APIRouter(prefix='/api/customers', tags=['customers'])
 
@@ -29,6 +29,10 @@ async def me(session: dict = Depends(get_session)):
 async def update_profile(payload: dict, session: dict = Depends(get_session)):
     if session['role'] != 'customer':
         raise HTTPException(status_code=403, detail='Not a customer session.')
+    if 'name' in payload and not payload['name'].strip():
+        raise HTTPException(status_code=400, detail='Name is required.')
+    if 'phone' in payload and not is_valid_phone(payload['phone']):
+        raise HTTPException(status_code=400, detail='Please enter a valid 10-digit mobile number.')
     updates = {f: payload[f] for f in ('name', 'phone', 'businessName', 'gstNumber') if f in payload}
     await db.customers.update_one({'_id': ObjectId(session['user_id'])}, {'$set': updates})
     doc = await db.customers.find_one({'_id': ObjectId(session['user_id'])})

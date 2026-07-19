@@ -4,7 +4,7 @@ from database import db
 from models import Customer
 from auth_utils import hash_password, verify_password, create_token
 from deps import get_session
-from business import now_iso
+from business import now_iso, is_valid_phone
 
 router = APIRouter(prefix='/api/auth', tags=['auth'])
 
@@ -19,7 +19,7 @@ class RegisterPayload(BaseModel):
     name: str
     email: EmailStr
     password: str
-    phone: str = ''
+    phone: str
     businessName: str = ''
     gstNumber: str = ''
 
@@ -49,6 +49,11 @@ async def login(payload: LoginPayload):
 
 @router.post('/register')
 async def register(payload: RegisterPayload):
+    if not payload.name.strip():
+        raise HTTPException(status_code=400, detail='Name is required.')
+    if not is_valid_phone(payload.phone):
+        raise HTTPException(status_code=400, detail='Please enter a valid 10-digit mobile number.')
+
     existing = await db.customers.find_one({'email': payload.email.lower()})
     if existing:
         raise HTTPException(status_code=409, detail='An account with that email already exists.')

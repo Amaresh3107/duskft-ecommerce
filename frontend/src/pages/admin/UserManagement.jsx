@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil } from 'lucide-react';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Switch } from '../../components/ui/switch';
@@ -12,7 +12,7 @@ import { toast } from '../../components/ui/sonner';
 import { API, formatApiErrorDetail } from '../../lib/api';
 import { adminAuthHeaders } from '../../context/AdminAuthContext';
 
-const EMPTY_STAFF_FORM = { id: null, name: '', email: '', password: '', role: 'staff', status: 'active' };
+const EMPTY_STAFF_FORM = { id: null, name: '', email: '', phone: '', password: '', role: 'staff', status: 'active' };
 
 function StaffTab() {
   const [users, setUsers] = useState(null);
@@ -31,7 +31,7 @@ function StaffTab() {
   useEffect(load, []);
 
   const openAdd = () => { setForm(EMPTY_STAFF_FORM); setDialogOpen(true); };
-  const openEdit = (u) => { setForm({ id: u.id, name: u.name, email: u.email, password: '', role: u.role, status: u.status }); setDialogOpen(true); };
+  const openEdit = (u) => { setForm({ id: u.id, name: u.name, email: u.email, phone: u.phone || '', password: '', role: u.role, status: u.status }); setDialogOpen(true); };
 
   const save = async (e) => {
     e.preventDefault();
@@ -39,8 +39,8 @@ function StaffTab() {
     try {
       const url = form.id ? `${API}/users/${form.id}` : `${API}/users`;
       const payload = form.id
-        ? { name: form.name, role: form.role, status: form.status, ...(form.password ? { password: form.password } : {}) }
-        : { name: form.name, email: form.email, password: form.password, role: form.role };
+        ? { name: form.name, phone: form.phone, role: form.role, status: form.status, ...(form.password ? { password: form.password } : {}) }
+        : { name: form.name, email: form.email, phone: form.phone, password: form.password, role: form.role };
       const res = await fetch(url, {
         method: form.id ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json', ...adminAuthHeaders() },
@@ -88,6 +88,7 @@ function StaffTab() {
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Email</TableHead>
+              <TableHead>Phone</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -98,6 +99,7 @@ function StaffTab() {
               <TableRow key={u.id}>
                 <TableCell>{u.name}</TableCell>
                 <TableCell className="text-[#5E6A7D]">{u.email}</TableCell>
+                <TableCell className="text-[#5E6A7D]">{u.phone || '—'}</TableCell>
                 <TableCell><Badge variant="secondary" className="capitalize">{u.role}</Badge></TableCell>
                 <TableCell>
                   <button onClick={() => toggleStatus(u)}>
@@ -119,6 +121,15 @@ function StaffTab() {
           <form onSubmit={save} className="space-y-3">
             <Input placeholder="Full name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
             <Input type="email" placeholder="Email" value={form.email} disabled={!!form.id} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
+            <Input
+              type="tel"
+              placeholder="Mobile number (10 digits)"
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+              pattern="[6-9][0-9]{9}"
+              title="Enter a valid 10-digit mobile number"
+              required
+            />
             <Input
               type="password"
               placeholder={form.id ? 'New password (leave blank to keep current)' : 'Password'}
@@ -169,6 +180,26 @@ function CustomersTab() {
     }
   };
 
+  // "Delete" here doesn't remove the account from the database — their order
+  // history, invoices, and addresses all reference this customer, so a real
+  // delete would orphan that data. Instead it's a harder, one-way suspension:
+  // unlike the Active/Inactive toggle, there's no button to undo it from here.
+  const suspend = async (c) => {
+    if (!window.confirm(`Permanently suspend ${c.name}'s account? This is different from deactivating — it cannot be undone from this screen.`)) return;
+    setCustomers(customers.map((x) => (x.id === c.id ? { ...x, status: 'suspended' } : x)));
+    try {
+      await fetch(`${API}/customers/${c.id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...adminAuthHeaders() },
+        body: JSON.stringify({ status: 'suspended' }),
+      });
+      toast.success(`${c.name}'s account has been permanently suspended.`);
+    } catch {
+      load();
+      toast.error('Could not suspend this account.');
+    }
+  };
+
   if (error) return <p className="text-sm text-red-500">{error}</p>;
   if (!customers) return <p className="text-sm text-[#5E6A7D]">Loading...</p>;
 
@@ -179,9 +210,11 @@ function CustomersTab() {
           <TableRow>
             <TableHead>Name</TableHead>
             <TableHead>Email</TableHead>
+            <TableHead>Phone</TableHead>
             <TableHead>Business</TableHead>
             <TableHead>GST</TableHead>
             <TableHead>Status</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -189,12 +222,24 @@ function CustomersTab() {
             <TableRow key={c.id}>
               <TableCell>{c.name}</TableCell>
               <TableCell className="text-[#5E6A7D]">{c.email}</TableCell>
+              <TableCell className="text-[#5E6A7D]">{c.phone || '—'}</TableCell>
               <TableCell className="text-[#5E6A7D]">{c.businessName || '—'}</TableCell>
               <TableCell className="text-[#5E6A7D]">{c.gstNumber || '—'}</TableCell>
               <TableCell>
-                <button onClick={() => toggleStatus(c)}>
-                  <Badge variant={c.status === 'active' ? 'default' : 'secondary'} className="cursor-pointer capitalize">{c.status}</Badge>
-                </button>
+                {c.status === 'suspended' ? (
+                  <Badge variant="destructive" className="capitalize">Suspended</Badge>
+                ) : (
+                  <button onClick={() => toggleStatus(c)}>
+                    <Badge variant={c.status === 'active' ? 'default' : 'secondary'} className="cursor-pointer capitalize">{c.status}</Badge>
+                  </button>
+                )}
+              </TableCell>
+              <TableCell className="text-right">
+                {c.status !== 'suspended' && (
+                  <button onClick={() => suspend(c)} title="Permanently suspend account" className="text-[#5E6A7D] hover:text-red-500">
+                    <Trash2 size={14} />
+                  </button>
+                )}
               </TableCell>
             </TableRow>
           ))}

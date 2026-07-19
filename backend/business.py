@@ -8,6 +8,18 @@ from datetime import datetime, timezone
 from database import db
 
 
+EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+PHONE_RE = re.compile(r'^[6-9]\d{9}$')  # Indian 10-digit mobile numbers
+
+
+def is_valid_email(email: str) -> bool:
+    return bool(email) and bool(EMAIL_RE.match(email.strip()))
+
+
+def is_valid_phone(phone: str) -> bool:
+    return bool(phone) and bool(PHONE_RE.match(phone.strip()))
+
+
 def slugify(text: str) -> str:
     text = re.sub(r'[^a-z0-9]+', '-', (text or '').lower().strip())
     return re.sub(r'(^-|-$)', '', text)
