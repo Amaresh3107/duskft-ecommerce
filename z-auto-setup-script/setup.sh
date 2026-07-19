@@ -137,7 +137,7 @@ venv/bin/pip install -r requirements.txt
 echo ""
 echo "========== Frontend =========="
 
-cd frontend/
+cd ../frontend/
 
 npm install --legacy-peer-deps
 
