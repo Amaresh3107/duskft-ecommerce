@@ -1,5 +1,8 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
+from fastapi.responses import StreamingResponse
 from typing import Optional
+import csv
+import io
 from bson import ObjectId
 from database import db
 from models import Product
@@ -7,6 +10,121 @@ from deps import require_roles, get_optional_session
 from business import slugify, calculate_price, now_iso
 
 router = APIRouter(prefix='/api/products', tags=['products'])
+
+IMPORT_HEADERS = [
+    'sku', 'name', 'categoryName', 'description', 'basePrice', 'moq', 'totalStock', 'stock',
+    'colors', 'sizes', 'tierPricing', 'videoUrl', 'images', 'status',
+]
+
+
+@router.get('/import/template')
+async def download_import_template(session: dict = Depends(require_roles('admin'))):
+    """A downloadable CSV admins can fill in and re-upload via /import.
+    Opens fine in Excel/Google Sheets — CSV rather than .xlsx to avoid an
+    extra parsing dependency, while staying fully spreadsheet-compatible."""
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(IMPORT_HEADERS)
+    writer.writerow([
+        'DRS-002', 'Floral Maxi Dress', 'Dresses & Sets',
+        'Lightweight floral print maxi dress, breathable fabric',
+        '850', '15', '200', '200',
+        'Red,Blue,Green', 'S,M,L,XL',
+        '15:850,25:800,50:750',
+        '',
+        'https://example.com/image1.jpg,https://example.com/image2.jpg',
+        'active',
+    ])
+    writer.writerow([
+        '# categoryName must match an existing category name exactly (case-insensitive), or leave blank',
+        '', '', '', '', '', '', '', '', '', '', '', '', '',
+    ])
+    writer.writerow([
+        '# tierPricing format: minQty:price pairs separated by commas, e.g. 15:850,25:800 — leave blank for none',
+        '', '', '', '', '', '', '', '', '', '', '', '', '',
+    ])
+    writer.writerow([
+        '# colors / sizes / images: comma-separated. images must be full URLs — local upload from a spreadsheet isn\'t supported yet',
+        '', '', '', '', '', '', '', '', '', '', '', '', '',
+    ])
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type='text/csv',
+        headers={'Content-Disposition': 'attachment; filename="product_import_template.csv"'},
+    )
+
+
+@router.post('/import')
+async def bulk_import_products(file: UploadFile = File(...), session: dict = Depends(require_roles('admin'))):
+    if not file.filename.lower().endswith('.csv'):
+        raise HTTPException(status_code=400, detail='Please upload a .csv file (Excel: File > Save As > CSV).')
+
+    raw = await file.read()
+    try:
+        text = raw.decode('utf-8-sig')  # utf-8-sig strips Excel's BOM if present
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail='Could not read this file as text — please save it as CSV (UTF-8).')
+
+    category_docs = await db.categories.find().to_list(1000)
+    category_lookup = {c['name'].strip().lower(): str(c['_id']) for c in category_docs}
+
+    reader = csv.DictReader(io.StringIO(text))
+    created = 0
+    errors = []
+    row_num = 1  # header is row 1
+
+    for row in reader:
+        row_num += 1
+        name = (row.get('name') or '').strip()
+        if not name or name.startswith('#'):
+            continue  # skip blank rows and the "# ..." instruction rows from the template
+
+        try:
+            sku = (row.get('sku') or '').strip()
+            base_price = float(row.get('basePrice') or 0)
+            moq = int(row.get('moq') or 1)
+            total_stock = int(row.get('totalStock') or 0)
+            stock = int(row.get('stock') or total_stock)
+            if stock > total_stock:
+                raise ValueError('stock cannot exceed totalStock')
+
+            colors = [c.strip() for c in (row.get('colors') or '').split(',') if c.strip()]
+            sizes = [s.strip() for s in (row.get('sizes') or '').split(',') if s.strip()]
+            images = [u.strip() for u in (row.get('images') or '').split(',') if u.strip()]
+
+            category_name = (row.get('categoryName') or '').strip().lower()
+            category_id = category_lookup.get(category_name) if category_name else None
+            if category_name and not category_id:
+                raise ValueError(f'No category named "{row.get("categoryName")}" — check spelling or leave blank')
+
+            tier_pricing = []
+            tier_str = (row.get('tierPricing') or '').strip()
+            if tier_str:
+                for pair in tier_str.split(','):
+                    pair = pair.strip()
+                    if not pair:
+                        continue
+                    if ':' not in pair:
+                        raise ValueError(f'Bad tierPricing entry "{pair}" — expected format minQty:price')
+                    min_qty_str, price_str = pair.split(':', 1)
+                    tier_pricing.append({'minQty': int(min_qty_str), 'price': float(price_str)})
+
+            product = Product(
+                sku=sku, name=name, slug=slugify(name), categoryId=category_id,
+                description=(row.get('description') or '').strip(),
+                images=images, videoUrl=(row.get('videoUrl') or '').strip(),
+                colors=colors, sizes=sizes, tierPricing=tier_pricing,
+                basePrice=base_price, moq=moq, totalStock=total_stock, stock=stock,
+                status=(row.get('status') or 'active').strip().lower() or 'active',
+                createdAt=now_iso(),
+            )
+            await db.products.insert_one(product.to_mongo())
+            created += 1
+        except Exception as e:
+            errors.append({'row': row_num, 'product': name, 'error': str(e)})
+
+    return {'created': created, 'errors': errors}
 
 
 @router.get('')

@@ -87,3 +87,23 @@ async def update_user(user_id: str, payload: dict, session: dict = Depends(requi
     await db.users.update_one({'_id': ObjectId(user_id)}, {'$set': updates})
     doc = await db.users.find_one({'_id': ObjectId(user_id)})
     return safe_user(doc)
+
+
+@router.delete('/{user_id}')
+async def delete_user(user_id: str, session: dict = Depends(require_roles('admin'))):
+    existing = await db.users.find_one({'_id': ObjectId(user_id)})
+    if not existing:
+        raise HTTPException(status_code=404, detail='User not found.')
+
+    if existing.get('role') == 'admin' and existing.get('status', 'active') == 'active':
+        other_active_admins = await db.users.count_documents(
+            {'role': 'admin', 'status': 'active', '_id': {'$ne': ObjectId(user_id)}}
+        )
+        if other_active_admins == 0:
+            raise HTTPException(
+                status_code=400,
+                detail='Cannot delete the last active admin — this would lock everyone out. Promote another account to admin first.',
+            )
+
+    await db.users.delete_one({'_id': ObjectId(user_id)})
+    return {'success': True}

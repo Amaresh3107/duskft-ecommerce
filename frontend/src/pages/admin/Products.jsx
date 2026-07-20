@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Search, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, X, Download, Upload } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Textarea } from '../../components/ui/textarea';
@@ -86,6 +86,9 @@ export default function Products() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
 
   const load = () => {
     fetch(`${API}/products?includeInactive=true`, { headers: adminAuthHeaders() })
@@ -103,6 +106,48 @@ export default function Products() {
   }, []);
 
   const openAdd = () => { setForm(EMPTY_FORM); setDialogOpen(true); };
+
+  const downloadTemplate = async () => {
+    try {
+      const res = await fetch(`${API}/products/import/template`, { headers: adminAuthHeaders() });
+      if (!res.ok) throw new Error('Could not download the template.');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'product_import_template.csv';
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
+  const importFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`${API}/products/import`, {
+        method: 'POST',
+        headers: adminAuthHeaders(),
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(formatApiErrorDetail(data.detail));
+      setImportResult(data);
+      if (data.created > 0) load();
+      if (data.created > 0 && data.errors.length === 0) toast.success(`Imported ${data.created} products`);
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setImporting(false);
+      e.target.value = '';
+    }
+  };
   const openEdit = (p) => {
     setForm({
       id: p.id, sku: p.sku, name: p.name, categoryId: p.categoryId || '', description: p.description,
@@ -187,7 +232,14 @@ export default function Products() {
           <h1 className="font-display text-2xl text-[#121826]">Products</h1>
           <p className="mt-0.5 text-sm text-[#5E6A7D]">{products.length} total</p>
         </div>
-        <Button onClick={openAdd} className="gap-1.5"><Plus size={14} /> Add Product</Button>
+        <div className="flex gap-2">
+          {isAdmin && (
+            <Button variant="outline" onClick={() => { setImportOpen(true); setImportResult(null); }} className="gap-1.5">
+              <Upload size={14} /> Bulk Import
+            </Button>
+          )}
+          <Button onClick={openAdd} className="gap-1.5"><Plus size={14} /> Add Product</Button>
+        </div>
       </div>
 
       <div className="relative max-w-xs">
@@ -303,6 +355,59 @@ export default function Products() {
               <Button type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save Product'}</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Bulk Import Products</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-[#5E6A7D]">
+              Download the template, fill in one row per product, then upload it here. Doesn't affect any existing products — only adds new ones.
+            </p>
+
+            <Button variant="outline" onClick={downloadTemplate} className="gap-1.5">
+              <Download size={14} /> Download Template (.csv)
+            </Button>
+
+            <div>
+              <label className="mb-1 block text-xs text-[#5E6A7D]">Upload filled-in CSV</label>
+              <input
+                type="file"
+                accept=".csv"
+                onChange={importFile}
+                disabled={importing}
+                className="block w-full text-sm text-[#5E6A7D] file:mr-3 file:rounded-full file:border-0 file:bg-[#0B132B] file:px-4 file:py-2 file:text-sm file:text-white"
+              />
+            </div>
+
+            {importing && <p className="text-sm text-[#5E6A7D]">Importing...</p>}
+
+            {importResult && (
+              <div className="space-y-2 rounded-md border border-gray-200 p-3">
+                <p className="text-sm text-[#121826]">
+                  <span className="font-medium">{importResult.created}</span> product{importResult.created === 1 ? '' : 's'} imported successfully.
+                </p>
+                {importResult.errors.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-red-500">{importResult.errors.length} row(s) had errors and were skipped:</p>
+                    <ul className="mt-1 max-h-40 space-y-1 overflow-y-auto text-xs text-[#5E6A7D]">
+                      {importResult.errors.map((e, i) => (
+                        <li key={i}>Row {e.row} ({e.product || 'unnamed'}): {e.error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <p className="text-[11px] text-[#B7BFC9]">
+              Note: image columns accept URLs only — a spreadsheet can't carry actual image files. Add photos afterward via Edit on each product,
+              or paste externally-hosted image URLs directly into the sheet.
+            </p>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

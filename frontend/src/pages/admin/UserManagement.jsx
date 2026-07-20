@@ -76,6 +76,19 @@ function StaffTab() {
     }
   };
 
+  const deleteStaff = async (u) => {
+    if (!window.confirm(`Permanently delete ${u.name}'s account? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`${API}/users/${u.id}`, { method: 'DELETE', headers: adminAuthHeaders() });
+      const data = await res.json();
+      if (!res.ok) throw new Error(formatApiErrorDetail(data.detail));
+      toast.success('Account deleted');
+      load();
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
   if (error) return <p className="text-sm text-red-500">{error}</p>;
   if (!users) return <p className="text-sm text-[#5E6A7D]">Loading...</p>;
 
@@ -107,7 +120,8 @@ function StaffTab() {
                   </button>
                 </TableCell>
                 <TableCell className="text-right">
-                  <button onClick={() => openEdit(u)} className="text-[#5E6A7D] hover:text-[#121826]"><Pencil size={14} /></button>
+                  <button onClick={() => openEdit(u)} className="mr-3 text-[#5E6A7D] hover:text-[#121826]"><Pencil size={14} /></button>
+                  <button onClick={() => deleteStaff(u)} className="text-[#5E6A7D] hover:text-red-500"><Trash2 size={14} /></button>
                 </TableCell>
               </TableRow>
             ))}
