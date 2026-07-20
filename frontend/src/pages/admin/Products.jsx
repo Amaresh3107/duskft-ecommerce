@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Plus, Pencil, Trash2, Search, X, Download, Upload } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -89,6 +89,8 @@ export default function Products() {
   const [importOpen, setImportOpen] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
+  const [pendingFile, setPendingFile] = useState(null);
+  const fileInputRef = useRef(null);
 
   const load = () => {
     fetch(`${API}/products?includeInactive=true`, { headers: adminAuthHeaders() })
@@ -115,7 +117,7 @@ export default function Products() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'product_import_template.csv';
+      a.download = 'product_import_template.xlsx';
       a.click();
       window.URL.revokeObjectURL(url);
     } catch (err) {
@@ -123,14 +125,26 @@ export default function Products() {
     }
   };
 
-  const importFile = async (e) => {
+  // Selecting a file only stages it — nothing is uploaded until the user
+  // explicitly confirms, in case the wrong file gets picked by mistake.
+  const selectFile = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setImporting(true);
+    setPendingFile(file);
     setImportResult(null);
+  };
+
+  const cancelImport = () => {
+    setPendingFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const confirmImport = async () => {
+    if (!pendingFile) return;
+    setImporting(true);
     try {
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', pendingFile);
       const res = await fetch(`${API}/products/import`, {
         method: 'POST',
         headers: adminAuthHeaders(),
@@ -145,7 +159,8 @@ export default function Products() {
       toast.error(err.message);
     } finally {
       setImporting(false);
-      e.target.value = '';
+      setPendingFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
   const openEdit = (p) => {
@@ -369,19 +384,30 @@ export default function Products() {
             </p>
 
             <Button variant="outline" onClick={downloadTemplate} className="gap-1.5">
-              <Download size={14} /> Download Template (.csv)
+              <Download size={14} /> Download Template (.xlsx)
             </Button>
 
             <div>
-              <label className="mb-1 block text-xs text-[#5E6A7D]">Upload filled-in CSV</label>
+              <label className="mb-1 block text-xs text-[#5E6A7D]">Upload filled-in file</label>
               <input
+                ref={fileInputRef}
                 type="file"
-                accept=".csv"
-                onChange={importFile}
+                accept=".csv,.xlsx"
+                onChange={selectFile}
                 disabled={importing}
                 className="block w-full text-sm text-[#5E6A7D] file:mr-3 file:rounded-full file:border-0 file:bg-[#0B132B] file:px-4 file:py-2 file:text-sm file:text-white"
               />
             </div>
+
+            {pendingFile && !importing && (
+              <div className="flex items-center justify-between rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm">
+                <span className="truncate text-[#121826]">Import <strong>{pendingFile.name}</strong>?</span>
+                <div className="ml-3 flex shrink-0 gap-2">
+                  <Button size="sm" onClick={confirmImport}>Confirm</Button>
+                  <Button size="sm" variant="outline" onClick={cancelImport}>Cancel</Button>
+                </div>
+              </div>
+            )}
 
             {importing && <p className="text-sm text-[#5E6A7D]">Importing...</p>}
 

@@ -3,6 +3,9 @@ from fastapi.responses import StreamingResponse
 from typing import Optional
 import csv
 import io
+from openpyxl import Workbook, load_workbook
+from openpyxl.styles import Font, PatternFill, Protection
+from openpyxl.utils import get_column_letter
 from bson import ObjectId
 from database import db
 from models import Product
@@ -19,106 +22,149 @@ IMPORT_HEADERS = [
 
 @router.get('/import/template')
 async def download_import_template(session: dict = Depends(require_roles('admin'))):
-    """A downloadable CSV admins can fill in and re-upload via /import.
-    Opens fine in Excel/Google Sheets — CSV rather than .xlsx to avoid an
-    extra parsing dependency, while staying fully spreadsheet-compatible."""
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(IMPORT_HEADERS)
-    writer.writerow([
+    """A downloadable .xlsx admins can fill in and re-upload via /import.
+    Header row is frozen (stays visible while scrolling) and locked (sheet
+    protection is on, so the column names can't be accidentally overwritten)
+    — data rows are explicitly left unlocked so they're still editable."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Products'
+
+    ws.append(IMPORT_HEADERS)
+    for cell in ws[1]:
+        cell.font = Font(bold=True)
+        cell.fill = PatternFill(start_color='DDDDDD', end_color='DDDDDD', fill_type='solid')
+        cell.protection = Protection(locked=True)
+    ws.freeze_panes = 'A2'
+
+    ws.append([
         'DRS-002', 'Floral Maxi Dress', 'Dresses & Sets',
         'Lightweight floral print maxi dress, breathable fabric',
-        '850', '15', '200', '200',
+        850, 15, 200, 200,
         'Red,Blue,Green', 'S,M,L,XL',
-        '15:850,25:800,50:750',
-        '',
+        '15:850,25:800,50:750', '',
         'https://example.com/image1.jpg,https://example.com/image2.jpg',
         'active',
     ])
-    writer.writerow([
-        '# categoryName must match an existing category name exactly (case-insensitive), or leave blank',
-        '', '', '', '', '', '', '', '', '', '', '', '', '',
-    ])
-    writer.writerow([
-        '# tierPricing format: minQty:price pairs separated by commas, e.g. 15:850,25:800 — leave blank for none',
-        '', '', '', '', '', '', '', '', '', '', '', '', '',
-    ])
-    writer.writerow([
-        '# colors / sizes / images: comma-separated. images must be full URLs — local upload from a spreadsheet isn\'t supported yet',
-        '', '', '', '', '', '', '', '', '', '', '', '', '',
-    ])
+    ws.append(['# categoryName must match an existing category name exactly (case-insensitive), or leave blank'])
+    ws.append(['# tierPricing format: minQty:price pairs separated by commas, e.g. 15:850,25:800 — leave blank for none'])
+    ws.append(["# colors / sizes / images: comma-separated. images must be full URLs — local upload from a spreadsheet isn't supported yet"])
+
+    # Data rows (including a good chunk of blank ones below, for typing new
+    # rows) stay editable even with sheet protection turned on.
+    for row in ws.iter_rows(min_row=2, max_row=500, max_col=len(IMPORT_HEADERS)):
+        for cell in row:
+            cell.protection = Protection(locked=False)
+
+    for i, header in enumerate(IMPORT_HEADERS, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = max(14, len(header) + 4)
+
+    ws.protection.sheet = True
+    ws.protection.formatCells = False
+    ws.protection.formatColumns = False
+    ws.protection.formatRows = False
+
+    output = io.BytesIO()
+    wb.save(output)
     output.seek(0)
     return StreamingResponse(
-        iter([output.getvalue()]),
-        media_type='text/csv',
-        headers={'Content-Disposition': 'attachment; filename="product_import_template.csv"'},
+        output,
+        media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={'Content-Disposition': 'attachment; filename="product_import_template.xlsx"'},
+    )
+
+
+def _rows_from_csv(raw: bytes):
+    try:
+        text = raw.decode('utf-8-sig')  # utf-8-sig strips Excel's BOM if present
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail='Could not read this file as text — please save it as CSV (UTF-8).')
+    return list(csv.DictReader(io.StringIO(text)))
+
+
+def _rows_from_xlsx(raw: bytes):
+    try:
+        wb = load_workbook(io.BytesIO(raw), data_only=True)
+        ws = wb.active
+    except Exception:
+        raise HTTPException(status_code=400, detail='Could not read this .xlsx file — is it a valid Excel file?')
+    rows_iter = ws.iter_rows(values_only=True)
+    headers = [str(h).strip() if h is not None else '' for h in next(rows_iter)]
+    rows = []
+    for values in rows_iter:
+        if all(v is None for v in values):
+            continue
+        row = {headers[i]: ('' if values[i] is None else str(values[i])) for i in range(min(len(headers), len(values)))}
+        rows.append(row)
+    return rows
+
+
+def _parse_and_build_product(row: dict, category_lookup: dict) -> Product:
+    name = (row.get('name') or '').strip()
+    sku = (row.get('sku') or '').strip()
+    base_price = float(row.get('basePrice') or 0)
+    moq = int(float(row.get('moq') or 1))
+    total_stock = int(float(row.get('totalStock') or 0))
+    stock = int(float(row.get('stock') or total_stock))
+    if stock > total_stock:
+        raise ValueError('stock cannot exceed totalStock')
+
+    colors = [c.strip() for c in (row.get('colors') or '').split(',') if c.strip()]
+    sizes = [s.strip() for s in (row.get('sizes') or '').split(',') if s.strip()]
+    images = [u.strip() for u in (row.get('images') or '').split(',') if u.strip()]
+
+    category_name = (row.get('categoryName') or '').strip().lower()
+    category_id = category_lookup.get(category_name) if category_name else None
+    if category_name and not category_id:
+        raise ValueError(f'No category named "{row.get("categoryName")}" — check spelling or leave blank')
+
+    tier_pricing = []
+    tier_str = (row.get('tierPricing') or '').strip()
+    if tier_str:
+        for pair in tier_str.split(','):
+            pair = pair.strip()
+            if not pair:
+                continue
+            if ':' not in pair:
+                raise ValueError(f'Bad tierPricing entry "{pair}" — expected format minQty:price')
+            min_qty_str, price_str = pair.split(':', 1)
+            tier_pricing.append({'minQty': int(float(min_qty_str)), 'price': float(price_str)})
+
+    return Product(
+        sku=sku, name=name, slug=slugify(name), categoryId=category_id,
+        description=(row.get('description') or '').strip(),
+        images=images, videoUrl=(row.get('videoUrl') or '').strip(),
+        colors=colors, sizes=sizes, tierPricing=tier_pricing,
+        basePrice=base_price, moq=moq, totalStock=total_stock, stock=stock,
+        status=(row.get('status') or 'active').strip().lower() or 'active',
+        createdAt=now_iso(),
     )
 
 
 @router.post('/import')
 async def bulk_import_products(file: UploadFile = File(...), session: dict = Depends(require_roles('admin'))):
-    if not file.filename.lower().endswith('.csv'):
-        raise HTTPException(status_code=400, detail='Please upload a .csv file (Excel: File > Save As > CSV).')
+    filename = file.filename.lower()
+    if not (filename.endswith('.csv') or filename.endswith('.xlsx')):
+        raise HTTPException(status_code=400, detail='Please upload a .csv or .xlsx file.')
 
     raw = await file.read()
-    try:
-        text = raw.decode('utf-8-sig')  # utf-8-sig strips Excel's BOM if present
-    except UnicodeDecodeError:
-        raise HTTPException(status_code=400, detail='Could not read this file as text — please save it as CSV (UTF-8).')
+    rows = _rows_from_xlsx(raw) if filename.endswith('.xlsx') else _rows_from_csv(raw)
 
     category_docs = await db.categories.find().to_list(1000)
     category_lookup = {c['name'].strip().lower(): str(c['_id']) for c in category_docs}
 
-    reader = csv.DictReader(io.StringIO(text))
     created = 0
     errors = []
     row_num = 1  # header is row 1
 
-    for row in reader:
+    for row in rows:
         row_num += 1
         name = (row.get('name') or '').strip()
         if not name or name.startswith('#'):
             continue  # skip blank rows and the "# ..." instruction rows from the template
 
         try:
-            sku = (row.get('sku') or '').strip()
-            base_price = float(row.get('basePrice') or 0)
-            moq = int(row.get('moq') or 1)
-            total_stock = int(row.get('totalStock') or 0)
-            stock = int(row.get('stock') or total_stock)
-            if stock > total_stock:
-                raise ValueError('stock cannot exceed totalStock')
-
-            colors = [c.strip() for c in (row.get('colors') or '').split(',') if c.strip()]
-            sizes = [s.strip() for s in (row.get('sizes') or '').split(',') if s.strip()]
-            images = [u.strip() for u in (row.get('images') or '').split(',') if u.strip()]
-
-            category_name = (row.get('categoryName') or '').strip().lower()
-            category_id = category_lookup.get(category_name) if category_name else None
-            if category_name and not category_id:
-                raise ValueError(f'No category named "{row.get("categoryName")}" — check spelling or leave blank')
-
-            tier_pricing = []
-            tier_str = (row.get('tierPricing') or '').strip()
-            if tier_str:
-                for pair in tier_str.split(','):
-                    pair = pair.strip()
-                    if not pair:
-                        continue
-                    if ':' not in pair:
-                        raise ValueError(f'Bad tierPricing entry "{pair}" — expected format minQty:price')
-                    min_qty_str, price_str = pair.split(':', 1)
-                    tier_pricing.append({'minQty': int(min_qty_str), 'price': float(price_str)})
-
-            product = Product(
-                sku=sku, name=name, slug=slugify(name), categoryId=category_id,
-                description=(row.get('description') or '').strip(),
-                images=images, videoUrl=(row.get('videoUrl') or '').strip(),
-                colors=colors, sizes=sizes, tierPricing=tier_pricing,
-                basePrice=base_price, moq=moq, totalStock=total_stock, stock=stock,
-                status=(row.get('status') or 'active').strip().lower() or 'active',
-                createdAt=now_iso(),
-            )
+            product = _parse_and_build_product(row, category_lookup)
             await db.products.insert_one(product.to_mongo())
             created += 1
         except Exception as e:
