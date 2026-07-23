@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
-import { ShoppingBag, User, LogOut, MessageCircleQuestion, LayoutDashboard, Package, Heart, MapPin, UserCircle, ChevronDown } from 'lucide-react';
+import { ShoppingBag, User, LogOut, MessageCircleQuestion, LayoutDashboard, Package, Heart, MapPin, UserCircle, ChevronDown, FileText } from 'lucide-react';
 import { API } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
@@ -12,6 +12,7 @@ import { STOREFRONT } from '../constants/testIds';
 const ACCOUNT_LINKS = [
   { to: '/portal/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/portal/orders', label: 'My Orders', icon: Package },
+  { to: '/portal/quotes', label: 'My Quotes', icon: FileText },
   { to: '/portal/wishlist', label: 'Wishlist', icon: Heart },
   { to: '/portal/addresses', label: 'Addresses', icon: MapPin },
   { to: '/portal/profile', label: 'Profile', icon: UserCircle },

@@ -1,17 +1,57 @@
-import { Link } from 'react-router-dom';
-import { Minus, Plus, Trash2, ShoppingBag } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Minus, Plus, Trash2, ShoppingBag, FileText } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from './ui/sheet';
 import { Button } from './ui/button';
 import { useCart, lineKey } from '../context/CartContext';
+import { useAuth, customerAuthHeaders } from '../context/AuthContext';
 import { cartTotals, moqStatusByProduct, formatCurrency } from '../lib/pricing';
-import { resolveImageUrl } from '../lib/api';
+import { API, resolveImageUrl, formatApiErrorDetail } from '../lib/api';
+import { toast } from './ui/sonner';
 import { CART } from '../constants/testIds';
 
 export const CartDrawer = () => {
   const { lines, updateQuantity, removeLine, drawerOpen, setDrawerOpen } = useCart();
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const { priced, subtotal } = cartTotals(lines);
   const moqStatus = moqStatusByProduct(lines);
   const unmetProducts = Object.entries(moqStatus).filter(([, s]) => !s.met);
+  const [quoteSettings, setQuoteSettings] = useState(null);
+
+  useEffect(() => {
+    fetch(`${API}/settings/public`).then((r) => r.json()).then(setQuoteSettings).catch(() => {});
+  }, []);
+
+  // Mirrors the server-side eligibility check in POST /quotes exactly —
+  // this only controls whether the button shows; the backend re-checks
+  // the same rule regardless, so this can't be bypassed by hiding it.
+  const totalQty = lines.reduce((sum, l) => sum + l.quantity, 0);
+  const minQty = quoteSettings?.quotationMinQty;
+  const minPrice = quoteSettings?.quotationMinPrice;
+  const meetsQty = minQty !== '' && minQty != null && totalQty >= Number(minQty);
+  const meetsPrice = minPrice !== '' && minPrice != null && subtotal >= Number(minPrice);
+  const quoteEligible = quoteSettings?.quotationRequireBoth ? (meetsQty && meetsPrice) : (meetsQty || meetsPrice);
+  const showQuoteOption = isAuthenticated && quoteSettings?.quotationsEnabled && quoteEligible;
+
+  const requestQuote = async () => {
+    try {
+      const res = await fetch(`${API}/quotes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...customerAuthHeaders() },
+        body: JSON.stringify({
+          items: priced.map((l) => ({ productId: l.productId, color: l.color, size: l.size, quantity: l.quantity })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(formatApiErrorDetail(data.detail));
+      toast.success(`Quote ${data.quoteNumber} requested`);
+      setDrawerOpen(false);
+      navigate(`/portal/quotes/${data.id}`);
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
 
   return (
     <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
@@ -77,6 +117,11 @@ export const CartDrawer = () => {
                       className="w-full rounded-full bg-[#FF4500] py-6 text-base font-medium text-white hover:bg-[#FF4500]/90">
                 <Link to="/checkout">Proceed to Checkout</Link>
               </Button>
+              {showQuoteOption && (
+                <Button variant="outline" onClick={requestQuote} className="mt-2 w-full gap-1.5 rounded-full py-6 text-base font-medium">
+                  <FileText size={16} /> Request a Quote Instead
+                </Button>
+              )}
             </div>
           </>
         )}

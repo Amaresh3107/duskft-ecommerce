@@ -3,7 +3,7 @@ from bson import ObjectId
 from database import db
 from models import Quote, Order
 from deps import require_roles, get_session
-from business import calculate_price, calculate_shipping, calculate_tax, gen_number, now_iso, log_activity, deduct_stock_for_items
+from business import calculate_price, calculate_shipping, calculate_tax, gen_number, now_iso, log_activity, deduct_stock_for_items, get_settings_dict
 
 router = APIRouter(prefix='/api/quotes', tags=['quotes'])
 
@@ -34,12 +34,27 @@ async def create_quote(payload: dict, session: dict = Depends(get_session)):
         })
 
     customer_id = payload.get('customerId') if is_staff else session['user_id']
+
+    if not is_staff:
+        settings = await get_settings_dict()
+        if not settings.get('quotationsEnabled'):
+            raise HTTPException(status_code=403, detail='Quotation requests are not available right now.')
+        min_qty = settings.get('quotationMinQty')
+        min_price = settings.get('quotationMinPrice')
+        total_qty = sum(i['quantity'] for i in priced_items)
+        meets_qty = min_qty not in (None, '') and total_qty >= float(min_qty)
+        meets_price = min_price not in (None, '') and subtotal >= float(min_price)
+        require_both = settings.get('quotationRequireBoth')
+        eligible = (meets_qty and meets_price) if require_both else (meets_qty or meets_price)
+        if not eligible:
+            raise HTTPException(status_code=403, detail='This order does not meet the minimum for a quote request yet.')
+
     quote = Quote(
         quoteNumber=gen_number('QT'),
         customerId=customer_id,
         items=priced_items,
         subtotal=subtotal,
-        status='draft',
+        status='draft' if is_staff else 'open',
         validUntil=payload.get('validUntil', ''),
         convertedOrderId='',
         shippingAddress=payload.get('shippingAddress', {}),
@@ -62,6 +77,16 @@ async def list_quotes(status: str | None = None, session: dict = Depends(get_ses
     return [Quote.from_mongo(d) for d in docs]
 
 
+@router.get('/{quote_id}')
+async def get_quote(quote_id: str, session: dict = Depends(get_session)):
+    doc = await db.quotes.find_one({'_id': ObjectId(quote_id)})
+    if not doc:
+        raise HTTPException(status_code=404, detail='Quote not found.')
+    if session['role'] == 'customer' and doc.get('customerId') != session['user_id']:
+        raise HTTPException(status_code=403, detail='Not authorized to view this quote.')
+    return Quote.from_mongo(doc)
+
+
 @router.put('/{quote_id}/status')
 async def update_quote_status(quote_id: str, payload: dict, session: dict = Depends(require_roles('admin', 'staff'))):
     status = payload.get('status')
@@ -75,6 +100,39 @@ async def update_quote_status(quote_id: str, payload: dict, session: dict = Depe
         raise HTTPException(status_code=400, detail='This quote has already been converted and cannot be changed.')
 
     await db.quotes.update_one({'_id': ObjectId(quote_id)}, {'$set': {'status': status, 'updatedAt': now_iso()}})
+    updated = await db.quotes.find_one({'_id': ObjectId(quote_id)})
+    return Quote.from_mongo(updated)
+
+
+@router.put('/{quote_id}')
+async def update_quote_items(quote_id: str, payload: dict, session: dict = Depends(require_roles('admin', 'staff'))):
+    doc = await db.quotes.find_one({'_id': ObjectId(quote_id)})
+    if not doc:
+        raise HTTPException(status_code=404, detail='Quote not found.')
+    if doc['status'] in ('converted', 'lost'):
+        raise HTTPException(status_code=400, detail=f'This quote is {doc["status"]} and its pricing can no longer be changed.')
+
+    items = payload.get('items')
+    if not items:
+        raise HTTPException(status_code=400, detail='At least one item is required.')
+
+    priced_items = []
+    subtotal = 0.0
+    for item in items:
+        qty = int(item['quantity'])
+        unit_price = float(item['unitPrice'])
+        line_total = unit_price * qty
+        subtotal += line_total
+        priced_items.append({
+            'productId': item['productId'], 'color': item.get('color', ''), 'size': item.get('size', ''),
+            'quantity': qty, 'unitPrice': unit_price, 'lineTotal': line_total,
+        })
+
+    await db.quotes.update_one(
+        {'_id': ObjectId(quote_id)},
+        {'$set': {'items': priced_items, 'subtotal': subtotal, 'updatedAt': now_iso()}},
+    )
+    await log_activity('quote', quote_id, 'pricing_edited', session['user_id'], session['role'])
     updated = await db.quotes.find_one({'_id': ObjectId(quote_id)})
     return Quote.from_mongo(updated)
 

@@ -7,6 +7,7 @@ router = APIRouter(prefix='/api/settings', tags=['settings'])
 PUBLIC_KEYS = [
     'storeName', 'currency', 'currencySymbol', 'taxPercent', 'freeShippingThreshold',
     'sellerAddress', 'sellerPhone', 'sellerEmail', 'whatsappNumber', 'gstNumber',
+    'quotationsEnabled', 'quotationMinQty', 'quotationMinPrice', 'quotationRequireBoth',
 ]
 
 

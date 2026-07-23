@@ -53,6 +53,10 @@ async def seed_defaults():
         'smtpPort': os.environ.get('SMTP_PORT', '587'),
         'smtpUser': os.environ.get('SMTP_USER', ''),
         'smtpPassword': os.environ.get('SMTP_PASSWORD', ''),
+        'quotationsEnabled': True,
+        'quotationMinQty': 100,
+        'quotationMinPrice': '',
+        'quotationRequireBoth': False,
     }
     for key, value in default_settings.items():
         existing = await db.settings.find_one({'_id': key})

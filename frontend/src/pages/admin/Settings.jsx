@@ -3,6 +3,7 @@ import { Pencil, X } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Textarea } from '../../components/ui/textarea';
+import { Switch } from '../../components/ui/switch';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/tabs';
 import { toast } from '../../components/ui/sonner';
 import { API, formatApiErrorDetail } from '../../lib/api';
@@ -39,9 +40,15 @@ const FIELD_GROUPS = {
     { key: 'smtpUser', label: 'SMTP Username (your email address)' },
     { key: 'smtpPassword', label: 'SMTP App Password', type: 'password' },
   ],
+  quotations: [
+    { key: 'quotationsEnabled', label: 'Enable Quotation Requests', type: 'switch' },
+    { key: 'quotationMinQty', label: 'Minimum Quantity (pieces)', type: 'number' },
+    { key: 'quotationMinPrice', label: 'Minimum Subtotal (₹)', type: 'number' },
+    { key: 'quotationRequireBoth', label: 'Require Both Thresholds (not just one)', type: 'switch' },
+  ],
 };
 
-const TAB_LABELS = { branding: 'Branding', tax_shipping: 'Tax & Shipping', seller: 'Seller Details', ai: 'AI Config', email: 'Email (SMTP)' };
+const TAB_LABELS = { branding: 'Branding', tax_shipping: 'Tax & Shipping', seller: 'Seller Details', ai: 'AI Config', email: 'Email (SMTP)', quotations: 'Quotations' };
 
 export default function Settings() {
   const [values, setValues] = useState(null);
@@ -125,13 +132,28 @@ export default function Settings() {
                   (not your regular password — requires 2-Step Verification on the account). For Outlook: smtp.office365.com, port 587.
                 </p>
               )}
+              {group === 'quotations' && (
+                <p className="rounded-md bg-black/5 px-3 py-2 text-xs text-[#5E6A7D]">
+                  "Request a Quote" only appears to a customer once their cart meets the threshold(s) below. Fill in at least one of
+                  Minimum Quantity / Minimum Subtotal — leave the other blank to ignore it, unless "Require Both" is on, in which case both are needed.
+                </p>
+              )}
               {fields.map((f) => (
                 <div key={f.key}>
-                  <label className="mb-1 block text-xs text-[#5E6A7D]">{f.label}</label>
-                  {f.textarea ? (
-                    <Textarea rows={3} disabled={!isEditing} value={values[f.key] || ''} onChange={(e) => setValues({ ...values, [f.key]: e.target.value })} />
+                  {f.type === 'switch' ? (
+                    <div className="flex items-center gap-2">
+                      <Switch checked={!!values[f.key]} disabled={!isEditing} onCheckedChange={(v) => setValues({ ...values, [f.key]: v })} />
+                      <span className="text-sm text-[#5E6A7D]">{f.label}</span>
+                    </div>
                   ) : (
-                    <Input type={f.type || 'text'} disabled={!isEditing} value={values[f.key] || ''} onChange={(e) => setValues({ ...values, [f.key]: e.target.value })} />
+                    <>
+                      <label className="mb-1 block text-xs text-[#5E6A7D]">{f.label}</label>
+                      {f.textarea ? (
+                        <Textarea rows={3} disabled={!isEditing} value={values[f.key] || ''} onChange={(e) => setValues({ ...values, [f.key]: e.target.value })} />
+                      ) : (
+                        <Input type={f.type || 'text'} disabled={!isEditing} value={values[f.key] || ''} onChange={(e) => setValues({ ...values, [f.key]: e.target.value })} />
+                      )}
+                    </>
                   )}
                 </div>
               ))}

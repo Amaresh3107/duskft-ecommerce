@@ -1,11 +1,12 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
-import { LayoutDashboard, Package, Heart, MapPin, UserCircle } from 'lucide-react';
+import { LayoutDashboard, Package, Heart, MapPin, UserCircle, FileText } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const NAV_ITEMS = [
   { to: '/portal/dashboard', label: 'Dashboard', icon: LayoutDashboard, enabled: true },
   { to: '/portal/orders', label: 'My Orders', icon: Package, enabled: true },
+  { to: '/portal/quotes', label: 'My Quotes', icon: FileText, enabled: true },
   { to: '/portal/wishlist', label: 'Wishlist', icon: Heart, enabled: true },
   { to: '/portal/addresses', label: 'Addresses', icon: MapPin, enabled: true },
   { to: '/portal/profile', label: 'Profile', icon: UserCircle, enabled: true },

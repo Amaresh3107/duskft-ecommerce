@@ -37,6 +37,8 @@ import PortalOrderDetail from "@/pages/portal/OrderDetail";
 import PortalWishlist from "@/pages/portal/Wishlist";
 import PortalAddresses from "@/pages/portal/Addresses";
 import PortalProfile from "@/pages/portal/Profile";
+import PortalQuotes from "@/pages/portal/Quotes";
+import PortalQuoteDetail from "@/pages/portal/QuoteDetail";
 
 function App() {
   return (
@@ -61,6 +63,8 @@ function App() {
                   <Route path="wishlist" element={<PortalWishlist />} />
                   <Route path="addresses" element={<PortalAddresses />} />
                   <Route path="profile" element={<PortalProfile />} />
+                  <Route path="quotes" element={<PortalQuotes />} />
+                  <Route path="quotes/:quoteId" element={<PortalQuoteDetail />} />
                 </Route>
               </Route>
               <Route path="/invoice/:orderId" element={<InvoicePrint />} />
@@ -84,7 +88,7 @@ function App() {
               </Route>
             </Routes>
           </BrowserRouter>
-          <Toaster position="bottom-right" offset={{ bottom: '150px', right: '50px' }} />
+          <Toaster position="bottom-right" offset={{ bottom: '200px', right: '50px' }} />
         </CartProvider>
       </AdminAuthProvider>
       </AuthProvider>
