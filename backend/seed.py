@@ -57,6 +57,7 @@ async def seed_defaults():
         'quotationMinQty': 100,
         'quotationMinPrice': '',
         'quotationRequireBoth': False,
+        'lowStockThresholdPercent': 15,
     }
     for key, value in default_settings.items():
         existing = await db.settings.find_one({'_id': key})

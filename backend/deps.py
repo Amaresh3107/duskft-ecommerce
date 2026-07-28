@@ -1,6 +1,8 @@
 from fastapi import Header, HTTPException, Depends
 import jwt as pyjwt
+from bson import ObjectId
 from auth_utils import decode_token
+from database import db
 
 
 async def get_session(authorization: str = Header(None)) -> dict:
@@ -13,7 +15,22 @@ async def get_session(authorization: str = Header(None)) -> dict:
         raise HTTPException(status_code=401, detail='Session expired, please log in again.')
     except pyjwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail='Invalid session.')
-    return {'user_id': payload['sub'], 'role': payload['role'], 'email': payload.get('email')}
+
+    role = payload['role']
+    user_id = payload['sub']
+    # Re-check the account's current status on every request, not just at
+    # login — a JWT is otherwise valid until it expires regardless of what
+    # happens to the account afterward, so deactivating/suspending someone
+    # wouldn't take effect until their token naturally expired.
+    try:
+        collection = db.customers if role == 'customer' else db.users
+        account = await collection.find_one({'_id': ObjectId(user_id)})
+    except Exception:
+        account = None
+    if not account or account.get('status', 'active') != 'active':
+        raise HTTPException(status_code=401, detail='This account is no longer active.')
+
+    return {'user_id': user_id, 'role': role, 'email': payload.get('email')}
 
 
 async def get_optional_session(authorization: str = Header(None)) -> dict | None:

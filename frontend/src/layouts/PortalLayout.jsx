@@ -1,7 +1,9 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
 import { LayoutDashboard, Package, Heart, MapPin, UserCircle, FileText } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, customerAuthHeaders } from '../context/AuthContext';
+import { API } from '../lib/api';
+import { toast } from '../components/ui/sonner';
 
 const NAV_ITEMS = [
   { to: '/portal/dashboard', label: 'Dashboard', icon: LayoutDashboard, enabled: true },
@@ -13,14 +15,33 @@ const NAV_ITEMS = [
 ];
 
 export default function PortalLayout() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     if (!isAuthenticated || (user && user.role !== 'customer')) {
       navigate('/login');
     }
   }, [isAuthenticated, user, navigate]);
+
+  // Re-validated once per navigation, not on a timer — visiting a different
+  // Portal page is already a natural action, so this rides along with it
+  // instead of polling. The backend (deps.py get_session) rejects every
+  // request from a deactivated/suspended account regardless; this just
+  // makes sure that shows up as a clean logout + redirect rather than each
+  // page silently failing to load while the user still looks "logged in."
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    fetch(`${API}/customers/me`, { headers: customerAuthHeaders() }).then((r) => {
+      if (r.status === 401) {
+        logout();
+        toast.error('Your account is no longer active. Please contact support if this is unexpected.');
+        navigate('/login');
+      }
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
 
   if (!isAuthenticated || (user && user.role !== 'customer')) return null;
 
@@ -30,7 +51,7 @@ export default function PortalLayout() {
       <h1 className="font-display mt-1 text-3xl text-[#121826]">Welcome back, {user?.name?.split(' ')[0]}</h1>
 
       <div className="mt-8 flex flex-col gap-8 sm:flex-row">
-        <nav className="flex shrink-0 flex-row gap-1 overflow-x-auto sm:w-52 sm:flex-col sm:overflow-visible">
+        <nav className="sticky top-20 flex shrink-0 flex-row gap-1 self-start overflow-x-auto sm:w-52 sm:flex-col sm:overflow-visible">
           {NAV_ITEMS.map(({ to, label, icon: Icon, enabled }) =>
             enabled ? (
               <NavLink
@@ -57,7 +78,7 @@ export default function PortalLayout() {
         </nav>
 
         <div className="min-w-0 flex-1">
-          <Outlet />
+          <Outlet key={user?.id} />
         </div>
       </div>
     </div>

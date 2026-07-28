@@ -3,7 +3,7 @@ from bson import ObjectId
 from database import db
 from models import Order
 from deps import require_roles, get_optional_session, get_session
-from business import calculate_price, calculate_shipping, calculate_tax, gen_number, now_iso, log_activity, deduct_stock_for_items, restore_stock_for_items
+from business import calculate_price, calculate_shipping, calculate_tax, gen_number, now_iso, log_activity, deduct_stock_for_items, restore_stock_for_items, is_valid_phone, InsufficientStockError
 
 router = APIRouter(prefix='/api/orders', tags=['orders'])
 
@@ -36,6 +36,11 @@ async def create_order(payload: dict, session: dict = Depends(get_optional_sessi
         price_info = calculate_price(product, total_qty_for_product)
         if not price_info['moqMet']:
             raise HTTPException(status_code=400, detail=f'MOQ not met for "{product["name"]}" — minimum {price_info["moq"]} units required.')
+        available = product.get('stock', 0)
+        if total_qty_for_product > available:
+            if available <= 0:
+                raise HTTPException(status_code=400, detail=f'"{product["name"]}" is currently out of stock.')
+            raise HTTPException(status_code=400, detail=f'Only {available} units of "{product["name"]}" are available right now.')
         qty = int(item['quantity'])
         line_total = price_info['unitPrice'] * qty
         subtotal += line_total
@@ -64,10 +69,18 @@ async def create_order(payload: dict, session: dict = Depends(get_optional_sessi
         customer_id = session['user_id']
         customer_doc = await db.customers.find_one({'_id': ObjectId(customer_id)})
         customer_name = customer_doc['name'] if customer_doc else customer_name
+    else:
+        # Guest checkout: name + phone are how we can actually reach this
+        # customer, so both are mandatory even though no account is created.
+        if not (payload.get('guestName') or '').strip():
+            raise HTTPException(status_code=400, detail='Please enter your name to place a guest order.')
+        if not is_valid_phone(payload.get('guestPhone', '')):
+            raise HTTPException(status_code=400, detail='Please enter a valid 10-digit mobile number to place a guest order.')
 
     order = Order(
         orderNumber=gen_number('ORD'),
         customerId=customer_id,
+        source='cart',
         customerName=customer_name,
         guestEmail=payload.get('guestEmail', '') if not customer_id else '',
         guestPhone=payload.get('guestPhone', '') if not customer_id else '',
@@ -137,7 +150,10 @@ async def update_order_status(order_id: str, payload: dict, session: dict = Depe
     # stockDeducted), and restore it if a confirmed+ order is cancelled
     # before shipping.
     if status == 'confirmed' and not doc.get('stockDeducted'):
-        await deduct_stock_for_items(doc.get('items', []))
+        try:
+            await deduct_stock_for_items(doc.get('items', []))
+        except InsufficientStockError as e:
+            raise HTTPException(status_code=400, detail=str(e))
         updates['stockDeducted'] = True
     elif status == 'cancelled' and doc.get('stockDeducted'):
         await restore_stock_for_items(doc.get('items', []))

@@ -77,6 +77,7 @@ export default function Checkout() {
     if (lines.length === 0) return setError('Your cart is empty.');
     if (!address.line1 || !address.city || !address.state || !address.pincode) return setError('Please complete the shipping address.');
     if (!isAuthenticated && !guest.guestName) return setError('Please enter your name for guest checkout.');
+    if (!isAuthenticated && !/^[6-9]\d{9}$/.test(guest.guestPhone)) return setError('Please enter a valid 10-digit mobile number for guest checkout.');
 
     setPlacing(true);
     try {
@@ -130,9 +131,18 @@ export default function Checkout() {
             <section>
               <p className="mb-3 text-xs uppercase tracking-[0.15em] text-[#5E6A7D]">Contact details</p>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <Input data-testid={CHECKOUT.guestNameInput} placeholder="Full name" value={guest.guestName} onChange={(e) => setGuest((g) => ({ ...g, guestName: e.target.value }))} />
+                <Input data-testid={CHECKOUT.guestNameInput} placeholder="Full name" value={guest.guestName} onChange={(e) => setGuest((g) => ({ ...g, guestName: e.target.value }))} required />
                 <Input data-testid={CHECKOUT.guestEmailInput} placeholder="Email" value={guest.guestEmail} onChange={(e) => setGuest((g) => ({ ...g, guestEmail: e.target.value }))} />
-                <Input data-testid={CHECKOUT.guestPhoneInput} placeholder="Phone" value={guest.guestPhone} onChange={(e) => setGuest((g) => ({ ...g, guestPhone: e.target.value }))} />
+                <Input
+                  data-testid={CHECKOUT.guestPhoneInput}
+                  type="tel"
+                  placeholder="Mobile number (10 digits)"
+                  value={guest.guestPhone}
+                  onChange={(e) => setGuest((g) => ({ ...g, guestPhone: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
+                  pattern="[6-9][0-9]{9}"
+                  title="Enter a valid 10-digit mobile number"
+                  required
+                />
               </div>
             </section>
           )}

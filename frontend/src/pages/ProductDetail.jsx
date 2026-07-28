@@ -42,8 +42,16 @@ export default function ProductDetail() {
   };
 
   const handleAddToCart = () => {
+    if (product.stock <= 0) {
+      toast.error(`"${product.name}" is currently out of stock.`);
+      return;
+    }
     if (!moqMet) {
       toast.error(`Minimum order for this product is ${product.moq} units — you have ${totalQty}.`);
+      return;
+    }
+    if (totalQty > product.stock) {
+      toast.error(`Only ${product.stock} units of "${product.name}" are available right now.`);
       return;
     }
     const newLines = Object.entries(matrix)
@@ -173,9 +181,9 @@ export default function ProductDetail() {
             </div>
 
             <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-              <Button data-testid={PDP.addToCartButton} onClick={handleAddToCart} disabled={totalQty === 0}
-                      className="flex-1 rounded-full bg-[#FF4500] py-6 text-base font-medium text-white hover:bg-[#FF4500]/90">
-                Add to Cart
+              <Button data-testid={PDP.addToCartButton} onClick={handleAddToCart} disabled={totalQty === 0 || product.stock <= 0}
+                      className="flex-1 rounded-full bg-[#FF4500] py-6 text-base font-medium text-white hover:bg-[#FF4500]/90 disabled:bg-gray-300">
+                {product.stock <= 0 ? 'Out of Stock' : 'Add to Cart'}
               </Button>
               {settings.whatsappNumber && (
                 <a

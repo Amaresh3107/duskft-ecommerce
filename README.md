@@ -167,6 +167,8 @@ erDiagram
         string orderStatus "pending|confirmed|processing|shipped|delivered|cancelled"
         bool stockDeducted
         object shippingAddress
+        bool stockDeducted
+        string source "cart | quote — origin of this order"
     }
     QUOTES {
         string id PK
@@ -268,7 +270,7 @@ erDiagram
         string createdAt
     }
     SETTINGS {
-        string key PK "storeName, taxPercent, geminiApiKey, smtpHost, etc."
+        string key PK "storeName, taxPercent, geminiApiKey, smtpHost, quotationsEnabled, etc."
         any value
     }
 ```
@@ -277,8 +279,8 @@ erDiagram
 - `products.totalStock` vs `products.stock` - `totalStock` is what was originally received (admin-set, doesn't auto-change); `stock` is current/remaining and auto-decrements when an order is **confirmed** (not at checkout), and is restored if a confirmed order is later cancelled. `stock` can never exceed `totalStock` - enforced both client and server side.
 - `orders.stockDeducted` - internal guard flag preventing double-deduction if an order's status flips around.
 - `orders.orderNumber` format - `PREFIX-YYMMDD-HHMMSS-NNNN`, where `NNNN` is 4 random digits (deliberately digits only, not hex, so it's easy to read aloud over a phone call).
-- `settings` is a free-form key/value collection, not a fixed schema - new settings keys can be added without a migration.
-
+- `settings` also controls quotation gating: `quotationsEnabled` (bool), `quotationMinQty`, `quotationMinPrice`, `quotationRequireBoth` (bool) — together decide when "Request a Quote" is shown to a customer, and whether both thresholds are required or just one.
+- `settings` also controls the low-stock alert threshold: `lowStockThresholdPercent` (number, % of a product's Total Stock) — used by the Dashboard's low-stock list instead of a flat number.
 ---
 
 ## 4. Feature List
@@ -287,13 +289,16 @@ erDiagram
 - Catalog with category filter + search
 - Product detail page: color/size matrix, tier pricing display, MOQ enforcement, image gallery, video embed
 - Cart: per-customer persistence (see 4.6), MOQ validation before checkout
+- "Request a Quote Instead" option in cart, shown only once the cart meets an admin-configured minimum (quantity and/or subtotal)
 - Checkout: guest or logged-in, COD/Bank Transfer/UPI, live shipping + tax calculation, GST split (CGST/SGST intra-state, IGST inter-state)
 - Order confirmation + printable invoice (print-only CSS, no nav/buttons in the printed output)
+- Out-of-stock handling: Catalog badge + disabled/relabeled "Out of Stock" button on PDP once stock hits 0; server-side rejects any order exceeding available stock, whether at checkout or at confirmation time (closes a real race where multiple pending orders could collectively oversell)
 - AI chatbot widget (see 4.5)
 
 ### 4.2 Customer Portal ("Antigravity")
 - Dashboard: active orders, total spent (excludes cancelled), pieces ordered (only counts confirmed+ orders), recent orders
 - My Orders: full list + status filter, detail view with visual status timeline
+- My Quotes: Request a quote from the cart (gated by admin-set quantity/price thresholds), then track status read-only.
 - Order detail also surfaces, when relevant: **Artwork Proof** review (approve/reject once admin sends a proof) and **Request Return/Replacement** (delivered orders only, within a 7-day window, reason-coded)
 - Wishlist
 - Saved Addresses: multiple, one default, reusable at checkout, enforced single-default server-side
@@ -302,11 +307,11 @@ erDiagram
 ### 4.3 Admin Panel (all 14 PRD modules)
 | Module | Notes |
 |---|---|
-| Dashboard | total sales, open orders, AOV, low-stock alerts |
+| Dashboard | total sales, open orders, AOV, sales-over-time (day/week/month/year), top-selling items w/ images, order status + cart-vs-quote breakdown, revenue by category, configurable low-stock threshold |
 | Products | full CRUD, drag-and-drop image upload/reorder, YouTube embed, tier pricing editor, MOQ, Total/Current stock, **bulk import via CSV/XLSX** with a downloadable template (frozen+locked header) |
 | Categories & Banners | CRUD, sort order, active toggle |
 | Orders | full pipeline (pending to confirmed to processing to shipped to delivered), cancel (any pre-delivered state), one-click invoice generation (idempotent), guest/registered customer contact info shown |
-| Quotations | draft to open to approved to converted/lost, convert-to-order |
+| Quotations | draft→open→approved→converted/lost, convert-to-order, admin can edit line pricing/quantity on a submitted quote (blocked once converted/lost), **gated visibility on the storefront via Settings (min qty/price threshold)** |
 | Invoices | generate, **real email delivery via SMTP**, print, record payments |
 | Payments Ledger | all payments + running Total Invoiced / Paid / Outstanding |
 | Returns / RMA | requested to approved to received to refunded/rejected, blocked pre-delivery |

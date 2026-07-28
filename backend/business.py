@@ -138,9 +138,31 @@ async def calculate_tax(subtotal: float, shipping_state: str) -> dict:
     }
 
 
+class InsufficientStockError(Exception):
+    pass
+
+
 async def deduct_stock_for_items(items: list):
     from database import db
     from bson import ObjectId
+    # Validate every line BEFORE deducting anything — otherwise a multi-item
+    # order could partially deduct stock for item 1, then fail on item 2,
+    # leaving inconsistent numbers. This also catches the real race: several
+    # orders can sit "pending" against the same stock simultaneously (stock
+    # only decrements on confirm), so confirming one late shouldn't be able
+    # to push stock negative just because it was first in the queue.
+    for item in items:
+        product = await db.products.find_one({'_id': ObjectId(item['productId'])})
+        if not product:
+            continue
+        needed = int(item.get('quantity', 0))
+        available = product.get('stock', 0)
+        if needed > available:
+            raise InsufficientStockError(
+                f'Not enough stock for "{product["name"]}" — {available} available, {needed} needed. '
+                'Another order may have used up the remaining stock first.'
+            )
+
     for item in items:
         await db.products.update_one(
             {'_id': ObjectId(item['productId'])},

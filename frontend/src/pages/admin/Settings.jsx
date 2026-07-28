@@ -18,6 +18,7 @@ const FIELD_GROUPS = {
   tax_shipping: [
     { key: 'taxPercent', label: 'Tax Percent (%)', type: 'number' },
     { key: 'freeShippingThreshold', label: 'Free Shipping Threshold (₹)', type: 'number' },
+    { key: 'lowStockThresholdPercent', label: 'Low Stock Alert Threshold (% of Total Stock)', type: 'number' },
     { key: 'shippingPolicyText', label: 'Shipping Policy Text', textarea: true },
     { key: 'returnPolicyText', label: 'Return Policy Text', textarea: true },
   ],

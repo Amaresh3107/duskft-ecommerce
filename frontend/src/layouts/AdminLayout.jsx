@@ -69,7 +69,7 @@ export default function AdminLayout() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F5F6F8]">
+    <div className="flex h-screen overflow-hidden bg-[#F5F6F8]">
       <aside className="flex w-60 shrink-0 flex-col border-r border-gray-200 bg-white">
         <div className="px-5 py-5">
           <p className="text-xs uppercase tracking-[0.2em] text-[#5E6A7D]">Admin Panel</p>

@@ -115,6 +115,7 @@ class Order(BaseDocument):
     paymentStatus: str = 'pending'
     orderStatus: str = 'pending'
     stockDeducted: bool = False
+    source: str = 'cart'  # 'cart' (direct checkout) | 'quote' (converted from a quotation)
     shippingAddress: dict = {}
     notes: str = ''
     deliveredAt: Optional[str] = None
