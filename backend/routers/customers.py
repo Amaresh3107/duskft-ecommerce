@@ -4,6 +4,7 @@ from database import db
 from models import Address, Customer
 from deps import require_roles, get_session
 from business import now_iso, is_valid_phone
+from auth_utils import hash_password, verify_password, create_token
 
 router = APIRouter(prefix='/api/customers', tags=['customers'])
 
@@ -37,6 +38,44 @@ async def update_profile(payload: dict, session: dict = Depends(get_session)):
     await db.customers.update_one({'_id': ObjectId(session['user_id'])}, {'$set': updates})
     doc = await db.customers.find_one({'_id': ObjectId(session['user_id'])})
     return safe_customer(doc)
+
+
+@router.post('/me/logout-all')
+async def logout_all_devices(session: dict = Depends(get_session)):
+    if session['role'] != 'customer':
+        raise HTTPException(status_code=403, detail='Not a customer session.')
+    # Bumping tokenVersion invalidates every token issued before this call,
+    # including the one making this request — the customer will need to log
+    # back in fresh afterward, on this device too. That's the correct
+    # behavior for "log out everywhere," not a bug.
+    await db.customers.update_one({'_id': ObjectId(session['user_id'])}, {'$inc': {'tokenVersion': 1}})
+    return {'success': True}
+
+
+@router.put('/me/password')
+async def change_password(payload: dict, session: dict = Depends(get_session)):
+    if session['role'] != 'customer':
+        raise HTTPException(status_code=403, detail='Not a customer session.')
+    current_password = payload.get('currentPassword', '')
+    new_password = payload.get('newPassword', '')
+    if not new_password or len(new_password) < 8:
+        raise HTTPException(status_code=400, detail='New password must be at least 8 characters.')
+
+    doc = await db.customers.find_one({'_id': ObjectId(session['user_id'])})
+    if not doc or not verify_password(current_password, doc['passwordHash']):
+        raise HTTPException(status_code=400, detail='Current password is incorrect.')
+
+    new_version = doc.get('tokenVersion', 0) + 1
+    await db.customers.update_one(
+        {'_id': ObjectId(session['user_id'])},
+        {'$set': {'passwordHash': hash_password(new_password), 'tokenVersion': new_version}},
+    )
+    # Bumping tokenVersion invalidates every session, including this one —
+    # so we immediately issue a fresh token with the new version embedded,
+    # letting the device the change was made from stay logged in seamlessly
+    # while every other device is signed out. Matches how Google, etc. behave.
+    new_token = create_token(session['user_id'], 'customer', session['email'], new_version)
+    return {'success': True, 'token': new_token}
 
 
 @router.get('/addresses')
@@ -141,3 +180,11 @@ async def update_customer_status(customer_id: str, payload: dict, session: dict 
         raise HTTPException(status_code=404, detail='Customer not found.')
     doc = await db.customers.find_one({'_id': ObjectId(customer_id)})
     return safe_customer(doc)
+
+
+@router.post('/{customer_id}/logout-all')
+async def admin_force_logout_customer(customer_id: str, session: dict = Depends(require_roles('admin', 'staff'))):
+    result = await db.customers.update_one({'_id': ObjectId(customer_id)}, {'$inc': {'tokenVersion': 1}})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail='Customer not found.')
+    return {'success': True}

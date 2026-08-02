@@ -78,6 +78,7 @@ class Customer(BaseDocument):
     businessName: str = ''
     gstNumber: str = ''
     status: str = 'active'
+    tokenVersion: int = 0
     createdAt: Optional[str] = None
 
 
@@ -214,6 +215,7 @@ class User(BaseDocument):
     passwordHash: str
     role: str
     status: str = 'active'
+    tokenVersion: int = 0
     createdAt: Optional[str] = None
 
 

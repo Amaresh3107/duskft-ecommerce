@@ -18,11 +18,12 @@ def verify_password(password: str, hashed: str) -> bool:
         return False
 
 
-def create_token(user_id: str, role: str, email: str) -> str:
+def create_token(user_id: str, role: str, email: str, token_version: int = 0) -> str:
     payload = {
         'sub': user_id,
         'role': role,
         'email': email,
+        'tv': token_version,
         'exp': datetime.now(timezone.utc) + timedelta(days=JWT_EXPIRY_DAYS),
     }
     return jwt.encode(payload, os.environ['JWT_SECRET'], algorithm=JWT_ALGORITHM)

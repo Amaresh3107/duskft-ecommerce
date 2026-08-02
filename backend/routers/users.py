@@ -3,7 +3,7 @@ from bson import ObjectId
 from database import db
 from models import User
 from deps import require_roles
-from auth_utils import hash_password
+from auth_utils import hash_password, verify_password, create_token
 from business import now_iso, is_valid_email, is_valid_phone
 
 router = APIRouter(prefix='/api/users', tags=['users'])
@@ -83,10 +83,46 @@ async def update_user(user_id: str, payload: dict, session: dict = Depends(requi
         updates['phone'] = payload['phone']
     if payload.get('password'):
         updates['passwordHash'] = hash_password(payload['password'])
+        # Changing a password should kill every existing session for this
+        # account, not just leave old tokens usable until they expire —
+        # otherwise a compromised password stays exploitable via an old
+        # token even after it's been changed.
+        updates['tokenVersion'] = existing.get('tokenVersion', 0) + 1
 
     await db.users.update_one({'_id': ObjectId(user_id)}, {'$set': updates})
     doc = await db.users.find_one({'_id': ObjectId(user_id)})
     return safe_user(doc)
+
+
+@router.post('/{user_id}/logout-all')
+async def admin_force_logout_user(user_id: str, session: dict = Depends(require_roles('admin'))):
+    result = await db.users.update_one({'_id': ObjectId(user_id)}, {'$inc': {'tokenVersion': 1}})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail='User not found.')
+    return {'success': True}
+
+
+@router.put('/me/password')
+async def change_own_password(payload: dict, session: dict = Depends(require_roles('admin', 'staff'))):
+    current_password = payload.get('currentPassword', '')
+    new_password = payload.get('newPassword', '')
+    if not new_password or len(new_password) < 8:
+        raise HTTPException(status_code=400, detail='New password must be at least 8 characters.')
+
+    doc = await db.users.find_one({'_id': ObjectId(session['user_id'])})
+    if not doc or not verify_password(current_password, doc['passwordHash']):
+        raise HTTPException(status_code=400, detail='Current password is incorrect.')
+
+    new_version = doc.get('tokenVersion', 0) + 1
+    await db.users.update_one(
+        {'_id': ObjectId(session['user_id'])},
+        {'$set': {'passwordHash': hash_password(new_password), 'tokenVersion': new_version}},
+    )
+    # Same reasoning as the customer version: bumping tokenVersion kills
+    # every session including this one, so reissue a fresh token immediately
+    # so the device making the change doesn't get logged out too.
+    new_token = create_token(session['user_id'], session['role'], session['email'], new_version)
+    return {'success': True, 'token': new_token}
 
 
 @router.delete('/{user_id}')

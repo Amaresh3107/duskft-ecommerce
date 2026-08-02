@@ -43,7 +43,7 @@ async def login(payload: LoginPayload):
         raise HTTPException(status_code=401, detail='Incorrect password.')
 
     role = 'customer' if payload.accountType == 'customer' else account['role']
-    token = create_token(str(account['_id']), role, account['email'])
+    token = create_token(str(account['_id']), role, account['email'], account.get('tokenVersion', 0))
     return {'token': token, 'user': safe_user(account)}
 
 
@@ -70,7 +70,7 @@ async def register(payload: RegisterPayload):
     )
     result = await db.customers.insert_one(customer.to_mongo())
     account = await db.customers.find_one({'_id': result.inserted_id})
-    token = create_token(str(account['_id']), 'customer', account['email'])
+    token = create_token(str(account['_id']), 'customer', account['email'], account.get('tokenVersion', 0))
     return {'token': token, 'user': safe_user(account)}
 
 

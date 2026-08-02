@@ -29,6 +29,8 @@ async def get_session(authorization: str = Header(None)) -> dict:
         account = None
     if not account or account.get('status', 'active') != 'active':
         raise HTTPException(status_code=401, detail='This account is no longer active.')
+    if payload.get('tv', 0) != account.get('tokenVersion', 0):
+        raise HTTPException(status_code=401, detail='Your session was signed out remotely. Please log in again.')
 
     return {'user_id': user_id, 'role': role, 'email': payload.get('email')}
 
