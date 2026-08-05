@@ -18,6 +18,8 @@ This README is the single source of truth for the project's current state. Updat
 | Email | SMTP (`smtplib`, stdlib) — Gmail/Outlook App Password style |
 | File Storage | Local disk by default; one-line switch to AWS S3 (`STORAGE_BACKEND=s3`) |
 | Bulk Import | `.csv` and `.xlsx` (via `openpyxl`) product import |
+| Containerization | Docker + Docker Compose (3 services: frontend, backend, mongo) |
+| Deployment | AWS EC2 (Ubuntu) for containerized self-hosted demo; Render (backend) + Vercel (frontend) + MongoDB Atlas for the always-on public demo |
 
 ---
 
@@ -354,29 +356,39 @@ pip install -r requirements.txt --break-system-packages
 ```
 
 Create `backend/.env`:
-```
-MONGO_URL=mongodb://localhost:27017
-DB_NAME=wholesale_saas
-JWT_SECRET=<long random string>
-CORS_ORIGINS=http://localhost:3000
+```dotenv
+# Local dev: mongodb://localhost:27017
+# Docker/Compose: mongodb://mongo:27017
+# Atlas: mongodb+srv://<user>:<password>@<cluster-url>/
+MONGO_URL=
 
-# Chatbot (optional - chatbot degrades gracefully without it)
-GEMINI_API_KEY=<your Gemini key>
+DB_NAME=wholesale_saas
+
+# Any long random string (used to sign JWTs) — generate with: openssl rand -hex 32
+JWT_SECRET=
+
+# Local dev: http://localhost:3000
+# Docker/EC2: http://<instance-public-ip>:3000
+# Vercel: https://<your-app>.vercel.app
+CORS_ORIGINS=
+
+# Optional — chatbot degrades gracefully without it
+GEMINI_API_KEY=
 GEMINI_MODEL=gemini-3.5-flash
 
-# Email (optional - invoice email will 400 with a clear message if unset)
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=you@gmail.com
-SMTP_PASSWORD=<Gmail App Password, not your normal password>
+# Optional — invoice email will 400 with a clear message if unset
+# Gmail: smtp.gmail.com, port 587, and an App Password (not your normal Gmail password)
+SMTP_HOST=
+SMTP_PORT=
+SMTP_USER=
+SMTP_PASSWORD=
 
-# File storage (optional - defaults to local disk)
+# local = saves to disk; s3 = uploads to AWS S3 (fill AWS_* below if s3)
 STORAGE_BACKEND=local
-# STORAGE_BACKEND=s3
-# AWS_S3_BUCKET=your-bucket
-# AWS_S3_REGION=ap-south-1
-# AWS_ACCESS_KEY_ID=...
-# AWS_SECRET_ACCESS_KEY=...
+AWS_S3_BUCKET=
+AWS_S3_REGION=ap-south-1
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
 ```
 
 ```bash
@@ -390,10 +402,17 @@ cd frontend
 nvm use 20
 npm install --legacy-peer-deps
 ```
+
 Create `frontend/.env`:
+```dotenv
+# Local dev: http://localhost:8000
+# Docker/EC2: http://<instance-public-ip>:8000
+# Render: https://<your-backend>.onrender.com
+# Note: this value is compiled into the static build at build time (CRA behavior) —
+# changing it after building requires a rebuild, not just editing this file.
+REACT_APP_BACKEND_URL=
 ```
-REACT_APP_BACKEND_URL=http://localhost:8000
-```
+
 ```bash
 npm start
 ```
@@ -412,20 +431,74 @@ npm start
 
 ---
 
-## 6. Known Gaps / Roadmap
+## 6. Containerized Deployment (Docker + AWS EC2)
+
+The full stack can also run as three Docker containers via Docker Compose — useful for a self-hosted demo independent of Render/Vercel/Atlas.
+
+### Files
+duskft-ecommerce/
++-- docker-compose.yml
++-- install-docker.sh # idempotent: installs Docker, Compose plugin, configures swap
++-- backend/
+| +-- Dockerfile
+| +-- .dockerignore
++-- frontend/
+| +-- Dockerfile # multi-stage: Node build -> Nginx serve
+| +-- nginx.conf
+| +-- .dockerignore
+
+### Quick start (fresh Ubuntu instance)
+```bash
+git clone <repo-url>
+cd duskft-ecommerce
+./install-docker.sh        # installs Docker + Compose + swap, only if missing
+newgrp docker              # only needed if Docker was just installed
+docker compose up --build -d
+```
+
+### Required config before first build
+- `backend/.env` — same variables as local setup (Section 5), but `MONGO_URL` must point to the Compose service name, not `localhost`:
+MONGO_URL=mongodb://mongo:27017
+CORS_ORIGINS=http://<instance-public-ip>:3000
+
+- `docker-compose.yml` — `REACT_APP_BACKEND_URL` build arg must be set to `http://<instance-public-ip>:8000`
+
+  **Important:** this value is compiled into the frontend's static JS bundle at build time (CRA behavior), not read at runtime. If the instance's public IP changes, the frontend image must be rebuilt (`docker compose build --no-cache frontend`) — editing `.env` alone won't update an already-built image.
+
+### AWS-specific setup
+- EC2 Security Group must allow inbound TCP on ports `3000` (frontend) and `8000` (backend)
+- Instance needs at least ~2GB usable memory (RAM + swap) to survive the frontend's production build (`npm run build`) without being OOM-killed — `install-docker.sh` auto-configures 2GB swap on instances with under ~2GB RAM
+- Recommended minimum EBS volume: 15-16GB (Docker images + build cache for this stack run 2-3GB; a default 8GB volume fills up fast across rebuilds)
+
+### Useful commands
+```bash
+docker compose logs -f backend       # tail backend logs
+docker compose down                  # stop, keep data
+docker compose down --volumes        # stop, wipe Mongo data too
+docker system df                     # see image/cache disk usage
+docker system prune -a -f --volumes  # reclaim all unused Docker disk space
+```
+
+---
+
+
+## 7. Known Gaps / Roadmap
 
 - **QR/UPI real payment gateway** - currently a display-only bank/UPI QR at checkout, not an integrated payment gateway (no auto-confirm on payment).
 - **Mobile responsiveness** - Storefront and Portal are responsive; the Admin Panel was built desktop-first and hasn't had a dedicated mobile pass.
 - **S3** - the switch is built and unit-verified, but not yet tested end-to-end against real AWS credentials.
 - **Guest order lookup** - a guest can view their own order confirmation immediately after checkout (session-stored), but has no way to look it up again later without creating an account (no lookup-by-order-number+email flow).
 - **Excel bulk import** - image columns accept URLs only; a spreadsheet can't carry actual image files, so bulk-imported products need photos added afterward via Edit.
+- **CI/CD** — images are currently built manually (locally or on the EC2 instance); a GitHub Actions pipeline to build and push images automatically on push to `main` is planned next.
 
 ---
 
-## 7. Project Structure
+## 8. Project Structure
 
 ```
 duskft-ecomerce/
++-- docker-compose.yml
++-- install-docker.sh
 +-- backend/
 |   +-- server.py           # FastAPI app, router registration, static file mount
 |   +-- models.py           # All Pydantic document models
@@ -435,7 +508,12 @@ duskft-ecomerce/
 |   +-- business.py         # Pricing, tax, shipping, stock, email, validators
 |   +-- seed.py             # Idempotent default data
 |   +-- routers/            # One file per resource (20 routers)
+|   +-- Dockerfile
+|   +-- .dockerignore
 +-- frontend/
+| +-- Dockerfile
+| +-- .dockerignore
+| +-- nginx.conf
     +-- src/
         +-- App.js           # All routing
         +-- layouts/         # StorefrontLayout, PortalLayout, AdminLayout
