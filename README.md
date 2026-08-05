@@ -436,6 +436,7 @@ npm start
 The full stack can also run as three Docker containers via Docker Compose — useful for a self-hosted demo independent of Render/Vercel/Atlas.
 
 ### Files
+```
 duskft-ecommerce/
 +-- docker-compose.yml
 +-- install-docker.sh # idempotent: installs Docker, Compose plugin, configures swap
@@ -458,8 +459,10 @@ docker compose up --build -d
 
 ### Required config before first build
 - `backend/.env` — same variables as local setup (Section 5), but `MONGO_URL` must point to the Compose service name, not `localhost`:
+```
 MONGO_URL=mongodb://mongo:27017
 CORS_ORIGINS=http://<instance-public-ip>:3000
+```
 
 - `docker-compose.yml` — `REACT_APP_BACKEND_URL` build arg must be set to `http://<instance-public-ip>:8000`
 
