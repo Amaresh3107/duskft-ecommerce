@@ -9,7 +9,7 @@ COPY . .
 
 ARG REACT_APP_BACKEND_URL
 ENV REACT_APP_BACKEND_URL=$REACT_APP_BACKEND_URL
-ENV NODE_OPTIONS=--max-old-space-size=768
+#ENV NODE_OPTIONS=--max-old-space-size=1024
 
 RUN npm run build
 
