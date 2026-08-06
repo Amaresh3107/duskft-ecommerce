@@ -18,9 +18,10 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}  # CHANGE: usually "ubuntu"
           key: ${{ secrets.EC2_SSH_KEY }}        # CHANGE: paste full contents of your .pem private key
           script: |
+            set -e
             cd ~/duskft/duskft-ecommerce        # CHANGE: update if your repo path on the instance is different
             git pull origin main
             docker compose up --build -d
             sleep 10
-            curl -f http://localhost:8000/docs || exit 1   # fails the workflow if backend didn't come up
+            curl -f http://localhost:8000/docs   # fails the workflow if backend didn't come up
             docker image prune -f
