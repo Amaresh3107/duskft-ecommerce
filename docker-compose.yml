@@ -21,7 +21,7 @@ services:
     build:
       context: ./frontend
       args:
-        REACT_APP_BACKEND_URL: http://54.242.48.48:8000
+        REACT_APP_BACKEND_URL: http://3.82.23.126:8000
     container_name: antigravity-frontend
     ports:
       - "3000:80"
