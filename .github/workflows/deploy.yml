@@ -3,7 +3,6 @@ name: Deploy Antigravity Wholesale
 on:
   push:
     branches: [main]
-  workflow_dispatch:
 
 jobs:
   deploy:
