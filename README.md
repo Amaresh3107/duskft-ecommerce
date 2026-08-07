@@ -482,6 +482,24 @@ docker system df                     # see image/cache disk usage
 docker system prune -a -f --volumes  # reclaim all unused Docker disk space
 ```
 
+### CI/CD (GitHub Actions)
+
+`.github/workflows/deploy.yml` auto-deploys to EC2 on every push to `main`:
+1. SSHs into the instance
+2. Pulls latest code
+3. Rebuilds and restarts containers (`docker compose up --build -d`)
+4. Runs a health check (`curl` against `/docs`) — the workflow fails if the backend doesn't come up clean
+
+**Required GitHub Secrets** (repo Settings → Secrets and variables → Actions):
+
+| Secret | Value |
+|---|---|
+| `EC2_HOST` | instance's public IP |
+| `EC2_USERNAME` | `ubuntu` |
+| `EC2_SSH_KEY` | full contents of the `.pem` private key |
+
+**Note:** if the instance's public IP ever changes (e.g. after a stop/start without an Elastic IP), update `EC2_HOST` here, `CORS_ORIGINS` in `backend/.env`, and the `REACT_APP_BACKEND_URL` build arg in `docker-compose.yml` — then rebuild the frontend image, since that value is baked in at build time.
+
 ---
 
 
@@ -492,14 +510,15 @@ docker system prune -a -f --volumes  # reclaim all unused Docker disk space
 - **S3** - the switch is built and unit-verified, but not yet tested end-to-end against real AWS credentials.
 - **Guest order lookup** - a guest can view their own order confirmation immediately after checkout (session-stored), but has no way to look it up again later without creating an account (no lookup-by-order-number+email flow).
 - **Excel bulk import** - image columns accept URLs only; a spreadsheet can't carry actual image files, so bulk-imported products need photos added afterward via Edit.
-- **CI/CD** — images are currently built manually (locally or on the EC2 instance); a GitHub Actions pipeline to build and push images automatically on push to `main` is planned next.
-
----
+- **CI/CD:**  Done — GitHub Actions auto-deploys to EC2 on every push to `main`, with a health check that fails the pipeline if the app doesn't come up clean. See Section 6.---
 
 ## 8. Project Structure
 
 ```
 duskft-ecomerce/
++-- .github/
+|   +-- workflows/
+|       +-- deploy.yml
 +-- docker-compose.yml
 +-- install-docker.sh
 +-- backend/
